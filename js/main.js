@@ -121,7 +121,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // データ送信関数
 window.transferSharedHID = async function(outData) {
-    console.log("◆ 送信データ (元データ):", outData); // 送信元の配列データを確認用に出力
+    console.log("◆ 送信データ (元データ):", outData); 
 
     if (isIOS) {
         // --- iPadOSの場合: データを16バイトずつのチャンクに分割して音声送信 ---
@@ -142,11 +142,7 @@ window.transferSharedHID = async function(outData) {
             blockNum++;
         }
         
-        // 実行コマンド (253, 2) を末尾に追加
-        let runArray = Array(19).fill(0);
-        runArray[0] = 253;
-        runArray[1] = 2;
-        allPackets.push(runArray);
+        // ★修正: 実行コマンド (253, 2) を追加していた処理を削除し、データパケットのみを送るようにしました。
         
         console.log(`【iPad送信】全${allPackets.length}個のパケットを音声で送信します`, allPackets);
         sendCombinedDataBySound(allPackets);
