@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LED Control App - STEP1</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="iframe-body">
+<div class="app-container step1">
+    <div class="header-controls">
+        <button class="connect-btn" id="connect-btn">🔌 接続</button>
+    </div>
+    <div class="led-container">
+        <div class="led" id="led-image"></div>
+    </div>
+    <div class="controls">
+        <div class="color-col">
+            <span class="color-label">赤</span>
+            <button class="btn on-btn" id="red-on" ontouchstart="turnOn(1); event.preventDefault();">ON</button>
+            <button class="btn off-btn" id="red-off" ontouchstart="turnOff(1); event.preventDefault();">OFF</button>
+        </div>
+        <div class="color-col">
+            <span class="color-label">緑</span>
+            <button class="btn on-btn" id="green-on" ontouchstart="turnOn(2); event.preventDefault();">ON</button>
+            <button class="btn off-btn" id="green-off" ontouchstart="turnOff(2); event.preventDefault();">OFF</button>
+        </div>
+        <div class="color-col">
+            <span class="color-label">青</span>
+            <button class="btn on-btn" id="blue-on" ontouchstart="turnOn(4); event.preventDefault();">ON</button>
+            <button class="btn off-btn" id="blue-off" ontouchstart="turnOff(4); event.preventDefault();">OFF</button>
+        </div>
+    </div>
+    <div class="end-container">
+        <button class="btn" id="end-btn" ontouchstart="endApp(); event.preventDefault();">終了</button>
+    </div>
+    <div class="state-display">
+        現在の変数(appState): <span id="state-val">0</span><br>
+        デバイス状況: <span id="device-status">未接続</span>
+    </div>
+</div>
+<script src="js/step1.js"></script>
+</body>
+</html>

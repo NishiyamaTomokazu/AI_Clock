@@ -1,0 +1,59 @@
+@charset "UTF-8";
+
+/* ==========================================
+   全体のスタイル (index.html用)
+================================================== */
+body.main-body { margin: 0; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; background-color: #f0f0f0; }
+.tabs { display: flex; gap: 10px; padding: 10px 20px; margin: 0; background-color: #ffffff; border-bottom: 2px solid #ccc; align-items: center; }
+.tab-btn { padding: 10px 20px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold; border-radius: 4px 4px 0 0; }
+.tab-btn.active { background: #007bff; color: white; border-color: #007bff; }
+#help-btn { margin-left: auto; background-color: #fff017; color: black; border: none; border-radius: 5px; }
+#help-btn:hover { background-color: #ebdd17; }
+
+#content-frame { flex-grow: 1; width: 100%; border: none; }
+
+dialog { width: 90%; max-width: 700px; height: 80%; border: none; border-radius: 10px; box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3); padding: 0; }
+dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+.dialog-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background-color: #f1f1f1; border-bottom: 1px solid #ccc; }
+.dialog-header h3 { margin: 0; }
+.close-btn { cursor: pointer; padding: 5px 15px; background-color: #333; color: white; border: none; border-radius: 5px; }
+
+/* ==========================================
+   STEP1, STEP2 共通スタイル (iframe用)
+================================================== */
+body.iframe-body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: transparent; margin: 0; }
+
+.app-container { background-color: #dcdcdc; border: 2px solid #333; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); overflow: hidden; }
+.app-container.step1 { width: 400px; padding: 20px; }
+.app-container.step2 { width: 750px; }
+
+.content-wrapper { display: flex; }
+.left-panel { width: 50%; padding: 20px; border-right: 2px dashed #999; }
+.right-panel { width: 50%; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+
+.header-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.connect-btn { padding: 6px 12px; font-size: 14px; font-weight: bold; border: 2px solid #333; border-radius: 4px; background-color: #d0e8f2; cursor: pointer; box-shadow: 2px 2px 0px #333; transition: all 0.1s; }
+.connect-btn:active { box-shadow: 0px 0px 0px #333; transform: translate(2px, 2px); }
+
+.led-container { display: flex; justify-content: center; margin: 20px 0 40px 0; }
+.led { width: 120px; height: 120px; border-radius: 50%; background-color: #555; border: 5px solid #333; transition: all 0.2s ease; }
+
+.controls { display: flex; justify-content: space-around; margin-bottom: 30px; }
+.color-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.color-label { font-size: 20px; font-weight: bold; }
+
+.btn { padding: 10px 20px; font-size: 16px; font-weight: bold; border: 2px solid #333; border-radius: 6px; background-color: #f9f9f9; cursor: pointer; box-shadow: 2px 2px 0px #333; transition: all 0.1s; }
+.btn:active { box-shadow: 0px 0px 0px #333; transform: translate(2px, 2px); }
+.btn.pressed { box-shadow: inset 3px 3px 6px rgba(0,0,0,0.4); transform: translate(2px, 2px); background-color: #e0e0e0; }
+
+.end-container { display: flex; justify-content: flex-end; padding-right: 10px; }
+.state-display { margin-top: 20px; padding: 10px; background: #333; color: #0f0; font-family: monospace; border-radius: 4px; text-align: center; font-size: 14px; }
+
+/* ==========================================
+   STEP2 ゲーム用UI部品
+================================================== */
+.game-header { font-size: 22px; font-weight: bold; margin-bottom: 30px; color: #333; }
+.start-btn { padding: 15px 40px; font-size: 20px; font-weight: bold; border: 2px solid #333; border-radius: 8px; background-color: #ffe066; cursor: pointer; box-shadow: 3px 3px 0px #333; margin-bottom: 40px; }
+.start-btn:active { box-shadow: 0px 0px 0px #333; transform: translate(3px, 3px); }
+.game-message { font-size: 24px; font-weight: bold; text-align: center; min-height: 80px; display: flex; align-items: center; justify-content: center; color: #333; }
+.question-num { font-size: 16px; color: #666; margin-bottom: 5px; }
