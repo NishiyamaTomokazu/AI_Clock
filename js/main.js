@@ -38,66 +38,6 @@ function getBinary(arrayData) {
     return returnData;
 }
 
-// 接続用ダミー音声を生成・出力する
-function outputSoundData(binaryDataArray) {
-    var audioCtxLocal = ensureAudioContext();
-    if (!audioCtxLocal) return;
-
-    var channels = 2;
-    var sampleRate = audioCtxLocal.sampleRate || 44100;
-    let estimatedSamples = 0;
-    let counterEst = 0;
-
-    binaryDataArray.forEach(element => {
-        element.forEach(x => {
-            if ((counterEst % 8) == 0) estimatedSamples += 20 + 30;
-            if (x == 0) estimatedSamples += 5 + 5;
-            else estimatedSamples += 5 + 15;
-            counterEst++;
-            if ((counterEst % 8) == 0) estimatedSamples += 20;
-        })
-    });
-    estimatedSamples += 1024;
-
-    var myArrayBuffer = audioCtxLocal.createBuffer(channels, estimatedSamples, sampleRate);
-    var newArray = myArrayBuffer.getChannelData(0);
-    let counter = 0;
-    let i = 0;
-    var tmp = 0;
-
-    binaryDataArray.forEach(element => {
-        element.map(x => {
-            if ((counter % 8) == 0) {
-                tmp = 20;
-                while (i++ < tmp) newArray[i] = 0;
-                tmp = i + 30;
-                while (i++ < tmp) newArray[i] = 1;
-            }
-            if (x == 0) {
-                tmp = i + 5;
-                while (i++ < tmp) newArray[i] = 0;
-                tmp = i + 5;
-                while (i++ < tmp) newArray[i] = 1;
-            } else {
-                tmp = i + 5;
-                while (i++ < tmp) newArray[i] = 0;
-                tmp = i + 15;
-                while (i++ < tmp) newArray[i] = 1;
-            }
-            counter++;
-            if ((counter % 8) == 0) {
-                tmp = i + 20;
-                while (i++ < tmp) newArray[i] = 0;
-            }
-        })
-    });
-
-    var source = audioCtxLocal.createBufferSource();
-    source.buffer = myArrayBuffer;
-    source.connect(audioCtxLocal.destination);
-    source.start();
-}
-
 // 配列データを音声パケット化して出力する
 function sendCombinedDataBySound(packets) {
     var audioCtxLocal = ensureAudioContext();
@@ -181,7 +121,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // データ送信関数
 window.transferSharedHID = async function(outData) {
-    console.log("◆ 送信データ (元データ):", outData); // ★追加: 送信元の配列データを確認用に出力
+    console.log("◆ 送信データ (元データ):", outData); // 送信元の配列データを確認用に出力
 
     if (isIOS) {
         // --- iPadOSの場合: データを16バイトずつのチャンクに分割して音声送信 ---
@@ -224,7 +164,7 @@ window.transferSharedHID = async function(outData) {
         for (let i = 0; i < outData.length; i++) {
             outputReport[0] = outData[i];
             await window.sharedHidDevice.sendReport(0x00, outputReport);
-            console.log(`【WebHID送信】送信中 (${i + 1}/${outData.length}): ${outData[i]}`); // ★追加: 1バイトごとの送信内容を出力
+            console.log(`【WebHID送信】送信中 (${i + 1}/${outData.length}): ${outData[i]}`); 
             await wait(90); 
         }
         console.log("【WebHID送信】データ送信が完了しました。");
@@ -234,19 +174,8 @@ window.transferSharedHID = async function(outData) {
 // デバイス接続関数
 window.connectSharedDevice = async function() {
     if (isIOS) {
-        // --- iPadOSの場合: 音声通信の準備 ---
+        // --- iPadOSの場合: 音声通信の準備のみ行い、ダミー音声は出さない ---
         ensureAudioContext();
-        
-        // 接続確認用のダミー音声 (253, 5) を送信
-        let sendDataArray = Array(19).fill(0);
-        sendDataArray[0] = 253;
-        sendDataArray[1] = 5;
-        let binaryDataArray = sendDataArray.map(getBinary);
-        
-        console.log("◆ 接続ダミー音声データ:", sendDataArray); // ★追加
-        outputSoundData(binaryDataArray);
-        
-        await wait(300);
         
         // 画面上には「音声通信」として接続完了を伝える
         return { productName: "音声通信 (iPad)" };
