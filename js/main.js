@@ -1,11 +1,11 @@
 // ==========================================
 // 端末(OS)の自動判定
 // ==========================================
-// iPadOS, iOSかどうかを判定する[cite: 13, 14, 15]
+// iPadOS, iOSかどうかを判定する
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 // ==========================================
-// iPadOS用 (Web Audio API) 音声通信処理[cite: 15]
+// iPadOS用 (Web Audio API) 音声通信処理
 // ==========================================
 var AudioContextClass = window.AudioContext || window.webkitAudioContext;
 var audioCtx = null;
@@ -21,7 +21,7 @@ function ensureAudioContext() {
     return audioCtx;
 }
 
-// データを2進数の配列に変換する[cite: 15]
+// データを2進数の配列に変換する
 function getBinary(arrayData) {
     var tmp = arrayData;
     let returnData = Array(8);
@@ -38,7 +38,7 @@ function getBinary(arrayData) {
     return returnData;
 }
 
-// 接続用ダミー音声を生成・出力する[cite: 15]
+// 接続用ダミー音声を生成・出力する
 function outputSoundData(binaryDataArray) {
     var audioCtxLocal = ensureAudioContext();
     if (!audioCtxLocal) return;
@@ -98,7 +98,7 @@ function outputSoundData(binaryDataArray) {
     source.start();
 }
 
-// 配列データを音声パケット化して出力する[cite: 15]
+// 配列データを音声パケット化して出力する
 function sendCombinedDataBySound(packets) {
     var audioCtxLocal = ensureAudioContext();
     if (!audioCtxLocal) return;
@@ -181,8 +181,10 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // データ送信関数
 window.transferSharedHID = async function(outData) {
+    console.log("◆ 送信データ (元データ):", outData); // ★追加: 送信元の配列データを確認用に出力
+
     if (isIOS) {
-        // --- iPadOSの場合: データを16バイトずつのチャンクに分割して音声送信 ---[cite: 15]
+        // --- iPadOSの場合: データを16バイトずつのチャンクに分割して音声送信 ---
         let allPackets = [];
         let blockNum = 1;
         
@@ -210,21 +212,29 @@ window.transferSharedHID = async function(outData) {
         sendCombinedDataBySound(allPackets);
         
     } else {
-        // --- Windows/ChromeOSの場合: WebHIDで1バイトずつ送信 ---[cite: 17]
-        if (!window.sharedHidDevice || !window.sharedHidDevice.opened) return;
+        // --- Windows/ChromeOSの場合: WebHIDで1バイトずつ送信 ---
+        if (!window.sharedHidDevice || !window.sharedHidDevice.opened) {
+            console.log("【WebHID送信】デバイスが未接続です。送信をスキップします。");
+            return;
+        }
+        
         const outputReport = new Uint8Array([0]);
+        console.log("【WebHID送信】データ送信を開始します...");
+
         for (let i = 0; i < outData.length; i++) {
             outputReport[0] = outData[i];
             await window.sharedHidDevice.sendReport(0x00, outputReport);
+            console.log(`【WebHID送信】送信中 (${i + 1}/${outData.length}): ${outData[i]}`); // ★追加: 1バイトごとの送信内容を出力
             await wait(90); 
         }
+        console.log("【WebHID送信】データ送信が完了しました。");
     }
 };
 
 // デバイス接続関数
 window.connectSharedDevice = async function() {
     if (isIOS) {
-        // --- iPadOSの場合: 音声通信の準備 ---[cite: 15]
+        // --- iPadOSの場合: 音声通信の準備 ---
         ensureAudioContext();
         
         // 接続確認用のダミー音声 (253, 5) を送信
@@ -232,6 +242,8 @@ window.connectSharedDevice = async function() {
         sendDataArray[0] = 253;
         sendDataArray[1] = 5;
         let binaryDataArray = sendDataArray.map(getBinary);
+        
+        console.log("◆ 接続ダミー音声データ:", sendDataArray); // ★追加
         outputSoundData(binaryDataArray);
         
         await wait(300);
@@ -240,7 +252,7 @@ window.connectSharedDevice = async function() {
         return { productName: "音声通信 (iPad)" };
         
     } else {
-        // --- Windows/ChromeOSの場合: WebHID接続処理 ---[cite: 17]
+        // --- Windows/ChromeOSの場合: WebHID接続処理 ---
         if (!('hid' in navigator)) return null;
         try {
             if (window.sharedHidDevice && window.sharedHidDevice.opened) {
@@ -273,7 +285,7 @@ window.connectSharedDevice = async function() {
     }
 };
 
-// WebHIDの切断検知[cite: 17]
+// WebHIDの切断検知
 if (navigator.hid) {
     navigator.hid.addEventListener('disconnect', (event) => {
         if (window.sharedHidDevice && event.device === window.sharedHidDevice) {
@@ -287,7 +299,7 @@ if (navigator.hid) {
 }
 
 // ==========================================
-// タブ・ヘルプ機能[cite: 12]
+// タブ・ヘルプ機能
 // ==========================================
 let currentHelpUrl = 'help/step1_help.html';
 
