@@ -124,25 +124,28 @@ window.transferSharedHID = async function(outData) {
     console.log("◆ 送信データ (元データ):", outData); 
 
     if (isIOS) {
-        // --- iPadOSの場合: データを16バイトずつのチャンクに分割して音声送信 ---
         let allPackets = [];
-        let blockNum = 1;
-        
-        for (let i = 0; i < outData.length; i += 16) {
-            let sendArray = Array(19).fill(0);
-            sendArray[0] = 253; // 音声通信のヘッダ
-            sendArray[1] = 1;   // データ送信コマンド
-            sendArray[2] = blockNum;
-            
-            let chunk = outData.slice(i, i + 16);
-            for (let j = 0; j < chunk.length; j++) {
-                sendArray[3 + j] = chunk[j];
+
+        // ★変更: 248から始まるデータ(STEP1, STEP2の通信)の場合はパケット変換せずそのまま送る
+        if (outData[0] === 248) {
+            allPackets.push(outData);
+        } else {
+            // 他のステップなどの長いデータ用（16バイト分割）
+            let blockNum = 1;
+            for (let i = 0; i < outData.length; i += 16) {
+                let sendArray = Array(19).fill(0);
+                sendArray[0] = 253; // 音声通信のヘッダ
+                sendArray[1] = 1;   // データ送信コマンド
+                sendArray[2] = blockNum;
+                
+                let chunk = outData.slice(i, i + 16);
+                for (let j = 0; j < chunk.length; j++) {
+                    sendArray[3 + j] = chunk[j];
+                }
+                allPackets.push(sendArray);
+                blockNum++;
             }
-            allPackets.push(sendArray);
-            blockNum++;
         }
-        
-        // ★修正: 実行コマンド (253, 2) を追加していた処理を削除し、データパケットのみを送るようにしました。
         
         console.log(`【iPad送信】全${allPackets.length}個のパケットを音声で送信します`, allPackets);
         sendCombinedDataBySound(allPackets);
