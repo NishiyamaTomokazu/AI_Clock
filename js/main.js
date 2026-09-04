@@ -1,7 +1,6 @@
 // ==========================================
 // 端末(OS)の自動判定
 // ==========================================
-// iPadOS, iOSかどうかを判定する
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 // ==========================================
@@ -110,6 +109,8 @@ function sendCombinedDataBySound(packets) {
     source.buffer = myArrayBuffer;
     source.connect(audioCtxLocal.destination);
     source.start();
+    
+    console.log("🔊 音声データを出力しました");
 }
 
 
@@ -126,11 +127,11 @@ window.transferSharedHID = async function(outData) {
     if (isIOS) {
         let allPackets = [];
 
-        // ★変更: 248から始まるデータ(STEP1, STEP2の通信)の場合はパケット変換せずそのまま送る
+        // 248から始まるデータ(STEP1, STEP2の通信)の場合はパケット変換せずそのまま送る
         if (outData[0] === 248) {
             allPackets.push(outData);
         } else {
-            // 他のステップなどの長いデータ用（16バイト分割）
+            // 他の長いデータ用（16バイト分割）
             let blockNum = 1;
             for (let i = 0; i < outData.length; i += 16) {
                 let sendArray = Array(19).fill(0);
@@ -151,7 +152,7 @@ window.transferSharedHID = async function(outData) {
         sendCombinedDataBySound(allPackets);
         
     } else {
-        // --- Windows/ChromeOSの場合: WebHIDで1バイトずつ送信 ---
+        // --- Windows/ChromeOSの場合 ---
         if (!window.sharedHidDevice || !window.sharedHidDevice.opened) {
             console.log("【WebHID送信】デバイスが未接続です。送信をスキップします。");
             return;
@@ -173,14 +174,21 @@ window.transferSharedHID = async function(outData) {
 // デバイス接続関数
 window.connectSharedDevice = async function() {
     if (isIOS) {
-        // --- iPadOSの場合: 音声通信の準備のみ行い、ダミー音声は出さない ---
-        ensureAudioContext();
+        let ctx = ensureAudioContext();
+        if (ctx) {
+            // ★iPadのSafariの制限解除: 「接続」を押した時に無音を再生し、音声エンジンを確実に起動させる
+            let buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+            let source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.start(0);
+            console.log("🔓 音声通信のロックを解除しました");
+        }
         
-        // 画面上には「音声通信」として接続完了を伝える
         return { productName: "音声通信 (iPad)" };
         
     } else {
-        // --- Windows/ChromeOSの場合: WebHID接続処理 ---
+        // --- Windows/ChromeOSの場合 ---
         if (!('hid' in navigator)) return null;
         try {
             if (window.sharedHidDevice && window.sharedHidDevice.opened) {
@@ -202,7 +210,6 @@ window.connectSharedDevice = async function() {
             window.sharedHidDevice = targetDevice;
             if (!window.sharedHidDevice.opened) {
                 await window.sharedHidDevice.open();
-                // HID初期化信号
                 await window.transferSharedHID([252]); 
             }
             return window.sharedHidDevice;
