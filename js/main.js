@@ -127,9 +127,14 @@ window.transferSharedHID = async function(outData) {
     if (isIOS) {
         let allPackets = [];
 
-        // 248から始まるデータ(STEP1, STEP2の通信)の場合はパケット変換せずそのまま送る
+        // 248から始まるデータ(STEP1, STEP2の通信)の場合
         if (outData[0] === 248) {
-            allPackets.push(outData);
+            // ★変更: 合計19個のデータになるように、後ろに 0 を詰める
+            let packet = Array(19).fill(0);
+            for (let i = 0; i < outData.length; i++) {
+                packet[i] = outData[i];
+            }
+            allPackets.push(packet);
         } else {
             // 他の長いデータ用（16バイト分割）
             let blockNum = 1;
@@ -176,7 +181,7 @@ window.connectSharedDevice = async function() {
     if (isIOS) {
         let ctx = ensureAudioContext();
         if (ctx) {
-            // ★iPadのSafariの制限解除: 「接続」を押した時に無音を再生し、音声エンジンを確実に起動させる
+            // iPadのSafariの制限解除: 「接続」を押した時に無音を再生し、音声エンジンを確実に起動させる
             let buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
             let source = ctx.createBufferSource();
             source.buffer = buffer;
