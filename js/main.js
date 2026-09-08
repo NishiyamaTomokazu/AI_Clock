@@ -114,27 +114,17 @@ window.transferSharedHID = async function(outData) {
     if (isIOS) {
         let allPackets = [];
         
-        if (outData[0] === 248) {
+        // ★完全修正: 分岐や不要なヘッダー(253, 1, 1)をすべて削除し、
+        // どんなデータが来ても純粋にそのまま19バイトに区切って送るようにしました
+        for (let i = 0; i < outData.length; i += 19) {
             let packet = Array(19).fill(0);
-            for (let i = 0; i < outData.length; i++) { packet[i] = outData[i]; }
-            allPackets.push(packet);
-
-        } else if (outData[0] === 253) {
-            let packet = Array(19).fill(0);
-            for (let i = 0; i < outData.length; i++) { packet[i] = outData[i]; }
-            allPackets.push(packet);
-            
-        } else {
-            let blockNum = 1;
-            for (let i = 0; i < outData.length; i += 16) {
-                let sendArray = Array(19).fill(0);
-                sendArray[0] = 253; sendArray[1] = 1; sendArray[2] = blockNum;
-                let chunk = outData.slice(i, i + 16);
-                for (let j = 0; j < chunk.length; j++) { sendArray[3 + j] = chunk[j]; }
-                allPackets.push(sendArray);
-                blockNum++;
+            let chunk = outData.slice(i, i + 19);
+            for (let j = 0; j < chunk.length; j++) { 
+                packet[j] = chunk[j]; 
             }
+            allPackets.push(packet);
         }
+        
         console.log(`【iPad送信】全${allPackets.length}個のパケットを音声で送信します`, allPackets);
         sendCombinedDataBySound(allPackets);
     } else {
@@ -157,7 +147,6 @@ window.connectSharedDevice = async function() {
     if (isIOS) {
         let ctx = ensureAudioContext();
         if (ctx) {
-            // ★追加: AudioContextが一時停止状態なら確実に再開させる
             if (ctx.state === 'suspended') {
                 await ctx.resume();
             }
@@ -166,7 +155,6 @@ window.connectSharedDevice = async function() {
             source.buffer = buffer; source.connect(ctx.destination); source.start(0);
             console.log("🔓 音声通信のロックを解除しました");
             
-            // ★追加: iOSのスピーカー準備が完了するまで0.4秒待つ（最初のデータが飲み込まれるのを防ぐ）
             await wait(400); 
         }
         return { productName: "音声通信 (iPad)" };
