@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <!-- ★追加: iPadやスマホで正しいサイズで表示させるための設定 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LED Control App</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -11,7 +13,6 @@
         <button class="tab-btn" onclick="loadTab('step1.html', this)">STEP1</button>
         <button class="tab-btn" onclick="loadTab('step2.html', this)">STEP2</button>
         <button class="tab-btn" id="tab-step3" style="display: none;" onclick="loadTab('step3.html', this)">STEP3</button>
-        <!-- ★追加: STEP4のタブ（最初は隠しておく） -->
         <button class="tab-btn" id="tab-step4" style="display: none;" onclick="loadTab('step4.html', this)">STEP4</button>
         
         <button class="tab-btn" id="help-btn" onclick="openHelp()">❓ ヘルプを開く</button>
