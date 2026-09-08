@@ -10,6 +10,10 @@ window.onDeviceDisconnected = function() {
 };
 
 window.addEventListener('DOMContentLoaded', () => {
+    if (window.parent && window.parent.hasClickedConnect) {
+        document.getElementById('connect-hint').style.display = 'none';
+    }
+
     if (window.parent && window.parent.sharedHidDevice && window.parent.sharedHidDevice.opened) {
         deviceStatusText.textContent = `接続中 (${window.parent.sharedHidDevice.productName})`;
         deviceStatusText.style.color = '#0ff';
@@ -18,11 +22,22 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 document.getElementById('connect-btn').addEventListener('click', async () => {
+    document.getElementById('connect-hint').style.display = 'none';
+    if (window.parent) {
+        window.parent.hasClickedConnect = true;
+    }
+
     if (window.parent && window.parent.connectSharedDevice) {
         const device = await window.parent.connectSharedDevice();
         if (device) {
             deviceStatusText.textContent = `接続中 (${device.productName})`;
             deviceStatusText.style.color = '#0ff';
+            
+            // ★追加: ボタンが押されて接続成功時に 252 を送信する
+            if (window.parent.transferSharedHID) {
+                console.log("◆AI クロック接続コマンド送信: [252]");
+                await window.parent.transferSharedHID([252]);
+            }
             sendStateToDevice();
         } else {
             alert('デバイスの接続に失敗したか、キャンセルされました。');
@@ -69,5 +84,4 @@ document.getElementById('green-off').addEventListener('click', () => turnOff(2))
 document.getElementById('blue-on').addEventListener('click', () => turnOn(4));
 document.getElementById('blue-off').addEventListener('click', () => turnOff(4));
 document.getElementById('end-btn').addEventListener('click', endApp);
-
 render();

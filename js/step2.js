@@ -1,5 +1,11 @@
 let appState = 0;
-let gameActive = false; let currentQuestion = 0; let targetColorValue = -1; let timerId = null;
+let gameActive = false; 
+let currentQuestion = 0; 
+let targetColorValue = -1; 
+let timerId = null;
+
+// 連続失敗回数をカウントする変数
+let consecutiveFailures = 0; 
 
 const ledImage = document.getElementById('led-image');
 const stateValText = document.getElementById('state-val');
@@ -15,6 +21,11 @@ window.onDeviceDisconnected = function() {
 };
 
 window.addEventListener('DOMContentLoaded', () => {
+    if (window.parent && window.parent.hasClickedConnect) {
+        const hint = document.getElementById('connect-hint');
+        if (hint) hint.style.display = 'none';
+    }
+
     if (window.parent && window.parent.sharedHidDevice && window.parent.sharedHidDevice.opened) {
         deviceStatusText.textContent = `接続中 (${window.parent.sharedHidDevice.productName})`;
         deviceStatusText.style.color = '#0ff';
@@ -36,8 +47,21 @@ async function connectDevice() {
 }
 
 document.getElementById('connect-btn').addEventListener('click', async () => {
+    const hint = document.getElementById('connect-hint');
+    if (hint) hint.style.display = 'none';
+    if (window.parent) {
+        window.parent.hasClickedConnect = true;
+    }
     const success = await connectDevice();
-    if (!success) alert('デバイスの接続に失敗したか、キャンセルされました。');
+    if (success) {
+        if (window.parent && window.parent.transferSharedHID) {
+            console.log("◆AI クロック接続コマンド送信: [252]");
+            await window.parent.transferSharedHID([252]);
+            sendStateToDevice();
+        }
+    } else {
+        alert('デバイスの接続に失敗したか、キャンセルされました。');
+    }
 });
 
 async function sendStateToDevice() {
@@ -48,27 +72,87 @@ async function sendStateToDevice() {
 
 window.startGame = async function() {
     if (!window.parent.sharedHidDevice || !window.parent.sharedHidDevice.opened) { 
-        const isConnected = await connectDevice(); 
-        if (!isConnected) return; 
+        try { await connectDevice(); } catch(e) {}
     }
+    
     appState = 8; render();
-    gameActive = true; currentQuestion = 0; gameMessageEl.style.color = "#333"; nextQuestion();
+    gameActive = true; 
+    currentQuestion = 0; 
+    // ★修正: ここにあった consecutiveFailures = 0; を削除しました
+    // これにより、スタートを押し直しても失敗回数が保持されます
+    gameMessageEl.style.color = "#333"; 
+    
+    if (questionNumEl) questionNumEl.style.display = 'inline-block';
+    
+    const clearContainer = document.getElementById('clear-container');
+    if (clearContainer) clearContainer.style.display = 'none';
+    
+    nextQuestion();
 }
-document.getElementById('start-game-btn').addEventListener('click', startGame);
+
+const startBtnEl = document.getElementById('start-game-btn');
+if(startBtnEl) {
+    startBtnEl.addEventListener('click', startGame);
+}
 
 function nextQuestion() {
+    if (!questionNumEl) return;
+    
     if (currentQuestion >= 5) {
-        questionNumEl.textContent = "クリア！"; gameMessageEl.textContent = "全問正解！"; gameMessageEl.style.color = "#e65100"; gameActive = false; return;
+        questionNumEl.textContent = "クリア！"; 
+        gameMessageEl.textContent = "全問正解！"; 
+        gameMessageEl.style.color = "#e65100"; 
+        gameActive = false; 
+
+        const clearContainer = document.getElementById('clear-container');
+        if (clearContainer) clearContainer.style.display = 'block';
+
+        if (window.parent && window.parent.document) {
+            const step3Tab = window.parent.document.getElementById('tab-step3');
+            if (step3Tab) step3Tab.style.display = 'inline-block';
+        }
+        return;
     }
+    
     currentQuestion++; questionNumEl.textContent = `第 ${currentQuestion} 問 / 全5問`;
-    let nextTarget; do { nextTarget = Math.floor(Math.random() * 8); } while (nextTarget === appState);
-    targetColorValue = nextTarget; gameMessageEl.textContent = `${colorTasks[targetColorValue]}ください`; gameMessageEl.style.color = "#333";
+    
+    let nextTarget; 
+    do { nextTarget = Math.floor(Math.random() * 8); } while (nextTarget === appState);
+    targetColorValue = nextTarget; 
+    gameMessageEl.textContent = `${colorTasks[targetColorValue]}ください`; 
+    gameMessageEl.style.color = "#333";
 
     clearTimeout(timerId);
     timerId = setTimeout(() => {
         if (gameActive) {
-            gameActive = false; targetColorValue = -1; questionNumEl.textContent = "タイムアップ";
-            gameMessageEl.innerHTML = `残念....<br><span style="font-size: 18px;">(正解数: ${currentQuestion - 1}問)</span>`; gameMessageEl.style.color = "red";
+            gameActive = false; 
+            targetColorValue = -1; 
+            
+            // 時間切れになったら連続失敗回数を増やす
+            consecutiveFailures++; 
+            
+            // 3回連続で失敗した場合の救済処理
+            if (consecutiveFailures >= 3) {
+                questionNumEl.textContent = "終了！";
+                gameMessageEl.innerHTML = `難しかったかな？<br><span style="font-size: 22px; font-weight: bold; color: #764ba2;">STEP3に進みましょう</span>`;
+                
+                // 次に進むボタンを表示し、タブも解放する
+                const clearContainer = document.getElementById('clear-container');
+                if (clearContainer) clearContainer.style.display = 'block';
+
+                if (window.parent && window.parent.document) {
+                    const step3Tab = window.parent.document.getElementById('tab-step3');
+                    if (step3Tab) step3Tab.style.display = 'inline-block';
+                }
+
+                // ★追加: 救済を発動した後は、カウントを一度リセットする
+                consecutiveFailures = 0;
+            } else {
+                // 3回未満の場合は通常の失敗メッセージ
+                questionNumEl.textContent = "タイムアップ";
+                gameMessageEl.innerHTML = `残念....<br><span style="font-size: 18px;">(正解数: ${currentQuestion - 1}問)</span>`; 
+                gameMessageEl.style.color = "red";
+            }
         }
     }, 3000);
 }
@@ -76,7 +160,14 @@ function nextQuestion() {
 function checkGame() {
     if (!gameActive || targetColorValue === -1) return;
     if (appState === targetColorValue) {
-        clearTimeout(timerId); targetColorValue = -1; gameMessageEl.textContent = "正解！"; gameMessageEl.style.color = "green";
+        clearTimeout(timerId); 
+        targetColorValue = -1; 
+        
+        // 正解したら連続失敗回数を0に戻す
+        consecutiveFailures = 0; 
+        
+        gameMessageEl.textContent = "正解！"; 
+        gameMessageEl.style.color = "green";
         setTimeout(() => { if (gameActive) nextQuestion(); }, 600);
     }
 }
@@ -101,6 +192,14 @@ function render() {
 window.turnOn = function(value) { if (appState === 8) appState = 0; appState |= value; render(); }
 window.turnOff = function(value) { if (appState === 8) appState = 0; appState &= ~value; render(); }
 window.endApp = function() { appState = 8; render(); }
+
+window.goToStep3 = function() {
+    endApp();
+    if (window.parent && window.parent.document) {
+        const step3Tab = window.parent.document.getElementById('tab-step3');
+        if (step3Tab) step3Tab.click();
+    }
+}
 
 document.getElementById('red-on').addEventListener('click', () => turnOn(1)); document.getElementById('red-off').addEventListener('click', () => turnOff(1));
 document.getElementById('green-on').addEventListener('click', () => turnOn(2)); document.getElementById('green-off').addEventListener('click', () => turnOff(2));
