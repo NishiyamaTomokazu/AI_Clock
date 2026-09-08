@@ -46,7 +46,8 @@ function sendCombinedDataBySound(packets) {
     const binaryPackets = packets.map(packet => packet.map(getBinary));
 
     let totalSamples = 0;
-    const waitSamples = Math.floor(sampleRate * 0.5);
+    // ★変更: ブロック間の待機時間を 0.5秒(500ms) から 0.1秒(100ms) に変更しました
+    const waitSamples = Math.floor(sampleRate * 0.1);
 
     binaryPackets.forEach((binaryDataArray) => {
         let est = 0;
@@ -99,7 +100,7 @@ function sendCombinedDataBySound(packets) {
     source.connect(audioCtxLocal.destination);
     source.start();
     
-    console.log("🔊 音声データを出力しました");
+    console.log("🔊 音声データを出力しました (ブロック間待機: 100ms)");
 }
 
 // ==========================================
@@ -114,7 +115,7 @@ window.transferSharedHID = async function(outData) {
     if (isIOS) {
         let allPackets = [];
         
-        // ★変更: データの先頭が「230」なら、ご指定の通り16バイト分割＆ヘッダー付与を行う
+        // データの先頭が「230」なら16バイト分割＆ヘッダー付与
         if (outData[0] === 230) {
             let blockNum = 1;
             for (let i = 0; i < outData.length; i += 16) {
@@ -131,7 +132,7 @@ window.transferSharedHID = async function(outData) {
                 blockNum++;
             }
         } 
-        // ★変更: それ以外（手動LED操作の248や、実行コマンドの253など短いデータ）はそのまま19バイトで送る
+        // それ以外（手動LED操作の248や、実行コマンドの253など）はそのまま19バイトで送る
         else {
             let packet = Array(19).fill(0);
             for (let i = 0; i < outData.length; i++) {
