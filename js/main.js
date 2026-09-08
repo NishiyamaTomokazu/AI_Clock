@@ -1,5 +1,5 @@
 // ==========================================
-// ★追加: 接続ボタンを一度でも押したかどうかのフラグ
+// 接続ボタンを一度でも押したかどうかのフラグ
 // ==========================================
 window.hasClickedConnect = false;
 
@@ -114,18 +114,13 @@ window.transferSharedHID = async function(outData) {
     if (isIOS) {
         let allPackets = [];
         
-        if (outData[0] === 248) {
+        // ★修正: すでに 253 から始まるコマンド（[253, 5]など）はそのまま19バイトにして送る
+        if (outData[0] === 253) {
             let packet = Array(19).fill(0);
             for (let i = 0; i < outData.length; i++) { packet[i] = outData[i]; }
             allPackets.push(packet);
             
-        // ★追加: [253, 5] が送られてきた場合は、そのまま19バイトにして送信
-        } else if (outData[0] === 253 && outData[1] === 5 && outData.length <= 2) {
-            let packet = Array(19).fill(0);
-            packet[0] = 253;
-            packet[1] = 5;
-            allPackets.push(packet);
-            
+        // ★修正: それ以外の手動操作（248...）やプログラムデータは、すべて [253, 1, ブロック番号] のカプセルに包んで送る
         } else {
             let blockNum = 1;
             for (let i = 0; i < outData.length; i += 16) {
