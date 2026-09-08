@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LED Control App - STEP0</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="iframe-body">
+
+<div class="app-container step0">
+    <!-- ヒーローバナー風のデザイン -->
+    <div class="hero-banner">
+        <div class="hero-icon">🪄✨</div>
+        <h1 class="hero-title">光と音をコントロール！<br>今日からキミも魔法使い</h1>
+    </div>
+
+    <div class="step0-content">
+        <p class="intro-text">
+            「手を叩くと、パッと明かりが点く」…そんな魔法みたいなこと、実は簡単にできるんです。<br>
+            使うのは以下の3つのアイテムだけ。ボタンをポチッと押して合図を送れば、キミの声や手拍子に合わせてLEDがカラフルに光り出す！<br>
+            さあ、光と音を思い通りに操る実験を始めよう！
+        </p>
+
+        <!-- 3つのパーツの紹介カード -->
+        <div class="parts-container">
+            <div class="part-card">
+                <div class="part-icon">💡</div>
+                <h3 class="part-name">フルカラーLED</h3>
+                <p class="part-desc">赤・緑・青の光を混ぜて、無限の色を出せる魔法のライト。</p>
+            </div>
+            
+            <div class="part-card">
+                <div class="part-icon">🎙️</div>
+                <h3 class="part-name">音センサ</h3>
+                <p class="part-desc">周りの「声」や「音」を感じ取る、機械の耳。</p>
+            </div>
+            
+            <div class="part-card">
+                <div class="part-icon">🔘</div>
+                <h3 class="part-name">押しボタン</h3>
+                <p class="part-desc">魔法を起動するための、司令塔となるスイッチ。</p>
+            </div>
+        </div>
+
+        <!-- ★追加: クリックでSTEP1へ進むテキスト -->
+        <!-- cursor: pointer; を直接指定して、押せることをわかりやすくしています -->
+        <p class="outro-text" style="cursor: pointer; font-weight: bold; color: #007bff;" onclick="goToStep1()">
+            準備ができたら STEP1 へ進もう 👉
+        </p>
+    </div>
+</div>
+
+<script>
+    // ★追加: 親画面（index.html）のSTEP1タブをクリックする関数
+    function goToStep1() {
+        if (window.parent && window.parent.document) {
+            // 親画面の .tab-btn クラスを持つボタンをすべて取得
+            const tabs = window.parent.document.querySelectorAll('.tab-btn');
+            
+            // 0番目がSTEP0、1番目がSTEP1のボタンなので、1番目をクリックさせる
+            if (tabs.length > 1) {
+                tabs[1].click();
+            }
+        }
+    }
+</script>
+
+</body>
+</html>

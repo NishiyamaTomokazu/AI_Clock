@@ -7,38 +7,50 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="iframe-body">
+
+<div class="top-controls step1">
+    <!-- ★変更: ボタンの名称を「AI クロックに接続」にしました -->
+    <button class="connect-btn" id="connect-btn">🪄 AI クロックに接続</button>
+    <span class="connect-hint" id="connect-hint">← まずはここを押そう！</span>
+</div>
+
 <div class="app-container step1">
-    <div class="header-controls">
-        <button class="connect-btn" id="connect-btn">🔌 接続</button>
+    <div class="panel-header">
+        <h2>🧪 魔法の調合ラボ</h2>
+        <p>光の三原色を混ぜて、新しい色を作り出そう！</p>
     </div>
-    <div class="led-container">
-        <div class="led" id="led-image"></div>
-    </div>
-    <div class="controls">
-        <div class="color-col">
-            <span class="color-label">赤</span>
-            <button class="btn on-btn" id="red-on" ontouchstart="turnOn(1); event.preventDefault();">ON</button>
-            <button class="btn off-btn" id="red-off" ontouchstart="turnOff(1); event.preventDefault();">OFF</button>
+
+    <div class="step1-inner">
+        <div class="led-container">
+            <div class="led" id="led-image"></div>
         </div>
-        <div class="color-col">
-            <span class="color-label">緑</span>
-            <button class="btn on-btn" id="green-on" ontouchstart="turnOn(2); event.preventDefault();">ON</button>
-            <button class="btn off-btn" id="green-off" ontouchstart="turnOff(2); event.preventDefault();">OFF</button>
+        <div class="controls">
+            <div class="color-col">
+                <span class="color-label">🔴 赤</span>
+                <button class="btn on-btn" id="red-on" ontouchstart="turnOn(1); event.preventDefault();">ON</button>
+                <button class="btn off-btn" id="red-off" ontouchstart="turnOff(1); event.preventDefault();">OFF</button>
+            </div>
+            <div class="color-col">
+                <span class="color-label">🟢 緑</span>
+                <button class="btn on-btn" id="green-on" ontouchstart="turnOn(2); event.preventDefault();">ON</button>
+                <button class="btn off-btn" id="green-off" ontouchstart="turnOff(2); event.preventDefault();">OFF</button>
+            </div>
+            <div class="color-col">
+                <span class="color-label">🔵 青</span>
+                <button class="btn on-btn" id="blue-on" ontouchstart="turnOn(4); event.preventDefault();">ON</button>
+                <button class="btn off-btn" id="blue-off" ontouchstart="turnOff(4); event.preventDefault();">OFF</button>
+            </div>
         </div>
-        <div class="color-col">
-            <span class="color-label">青</span>
-            <button class="btn on-btn" id="blue-on" ontouchstart="turnOn(4); event.preventDefault();">ON</button>
-            <button class="btn off-btn" id="blue-off" ontouchstart="turnOff(4); event.preventDefault();">OFF</button>
+        <div class="end-container">
+            <button class="btn" id="end-btn" ontouchstart="endApp(); event.preventDefault();">リセット</button>
         </div>
-    </div>
-    <div class="end-container">
-        <button class="btn" id="end-btn" ontouchstart="endApp(); event.preventDefault();">終了</button>
-    </div>
-    <div class="state-display">
-        現在の変数(appState): <span id="state-val">0</span><br>
-        デバイス状況: <span id="device-status">未接続</span>
+        <div class="state-display">
+            現在の変数(appState): <span id="state-val">0</span><br>
+            [ <span id="device-status">未接続</span> ]
+        </div>
     </div>
 </div>
+
 <script src="js/step1.js"></script>
 </body>
 </html>

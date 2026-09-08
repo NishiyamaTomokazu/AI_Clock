@@ -7,13 +7,17 @@
 </head>
 <body class="main-body">
     <div class="tabs">
-        <button class="tab-btn active" onclick="loadTab('step1.html', this)">STEP1</button>
+        <button class="tab-btn active" onclick="loadTab('step0.html', this)">STEP0</button>
+        <button class="tab-btn" onclick="loadTab('step1.html', this)">STEP1</button>
         <button class="tab-btn" onclick="loadTab('step2.html', this)">STEP2</button>
-        <button class="tab-btn" onclick="loadTab('step3.html', this)">確認2</button>
+        <button class="tab-btn" id="tab-step3" style="display: none;" onclick="loadTab('step3.html', this)">STEP3</button>
+        <!-- ★追加: STEP4のタブ（最初は隠しておく） -->
+        <button class="tab-btn" id="tab-step4" style="display: none;" onclick="loadTab('step4.html', this)">STEP4</button>
+        
         <button class="tab-btn" id="help-btn" onclick="openHelp()">❓ ヘルプを開く</button>
     </div>
 
-    <iframe id="content-frame" src="step1.html" allow="hid"></iframe>
+    <iframe id="content-frame" src="step0.html" allow="hid"></iframe>
 
     <dialog id="help-dialog">
         <div class="dialog-header">

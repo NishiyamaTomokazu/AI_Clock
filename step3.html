@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LED Control App - STEP3</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="iframe-body">
+
+<div class="app-container step0">
+    <div class="hero-banner" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); color: #333;">
+        <div class="hero-icon">💻✨</div>
+        <h1 class="hero-title">いよいよ「プログラミング」の世界へ！</h1>
+    </div>
+
+    <div class="step0-content">
+        <p class="intro-text" style="text-align: left; margin-bottom: 20px;">
+            <b>手動の魔法はここまで。次は「自動で動く魔法」を作ろう！</b><br><br>
+            自分の手でボタンを押してLEDを光らせる試験、見事なクリアだったね！<br>
+            でも、もし「手を叩いた瞬間に勝手に光る魔法」や「自動で色が変わり続けるイルミネーション」を作れたら、もっとすごいと思わない？
+        </p>
+
+        <p class="intro-text" style="text-align: left; margin-bottom: 40px;">
+            それを叶えるのが<strong>「プログラミング」</strong>！<br>
+            コンピュータに「こうやって動いてね」と指示を出せば、キミの代わりにいつでも正確に魔法をかけてくれるようになるんだ。<br>
+            STEP4からは、いよいよプログラムを組んでLEDと音センサを操るよ。本当の魔法使いになる準備はいいかな？
+        </p>
+
+        <div style="text-align: center;">
+            <button class="start-btn" style="background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); color: white; box-shadow: 0 6px 15px rgba(161,140,209,0.4);" onclick="goToStep4()">
+                プログラミングを始める（STEP4へ）🚀
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function goToStep4() {
+        if (window.parent && window.parent.document) {
+            // ★修正: STEP4のタブ要素を取得して、表示してからクリックする
+            const step4Tab = window.parent.document.getElementById('tab-step4');
+            if (step4Tab) {
+                step4Tab.style.display = 'inline-block'; // タブを表示
+                step4Tab.click(); // タブをクリックして移動
+            } else {
+                alert("STEP4のタブが見つかりません");
+            }
+        }
+    }
+</script>
+
+</body>
+</html>

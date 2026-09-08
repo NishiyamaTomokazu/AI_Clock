@@ -3,24 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LED Control App - STEP2</title>
+<title>LED Control App - STEP4</title>
 <link rel="stylesheet" href="css/style.css">
+<!-- Blocklyのライブラリ -->
+<script src="https://unpkg.com/blockly/blockly.min.js"></script>
 </head>
 <body class="iframe-body">
 
-<div class="top-controls step2">
+<div class="top-controls step4">
     <!-- ★変更: ボタンの名称を「AI クロックに接続」にしました -->
     <button class="connect-btn" id="connect-btn">🪄 AI クロックに接続</button>
-    <span class="connect-hint" id="connect-hint">← まずはここを押そう！</span>
+    <span class="connect-hint" id="connect-hint" style="display: none;">← まずはここを押そう！</span>
 </div>
 
-<div class="app-container step2">
+<div class="app-container step4">
     <div class="panel-header">
-        <h2>⚔️ 魔法使いの試験</h2>
-        <p>指定された色を3秒以内に作れるかな？</p>
+        <h2>💻 プログラミングラボ</h2>
+        <p>ブロックをつなげて、光の魔法を自動化しよう！</p>
     </div>
 
     <div class="content-wrapper">
+        <!-- 左側：手動パネル -->
         <div class="left-panel">
             <div class="led-container"><div class="led" id="led-image"></div></div>
             <div class="controls">
@@ -46,24 +49,30 @@
                 [ <span id="device-status">未接続</span> ]
             </div>
         </div>
-        <div class="right-panel">
-            <div class="game-header">⏱️ 3秒チャレンジ！</div>
-            <button class="start-btn" id="start-game-btn" ontouchstart="startGame(); event.preventDefault();">▶ スタート</button>
-            <div style="text-align: center; width: 100%;">
-                <div class="question-num" id="question-num" style="display: none;"></div>
-                <div class="game-message" id="game-message">
-                    ボタンを押して開始
-                </div>
-                
-                <div id="clear-container" style="display: none; margin-top: 20px;">
-                    <div style="font-size: 20px; font-weight: bold; color: #764ba2; margin-bottom: 15px; animation: bounce 1s infinite alternate;">✨ STEP3の扉が開かれた！ ✨</div>
-                    <button class="btn" style="width: auto; padding: 10px 30px; background: #667eea; color: white; border: none; border-radius: 50px;" onclick="goToStep3()">STEP3へ進む 🚪</button>
-                </div>
-            </div>
+
+        <!-- 右側：プログラミングパネル -->
+        <div class="right-panel" style="justify-content: flex-start;">
+            
+            <button class="start-btn" id="transfer-btn" style="width: 100%; font-size: 18px; padding: 10px; margin-bottom: 10px; background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);">
+                🚀 プログラム転送
+            </button>
+            <button class="start-btn" id="run-btn" style="width: 100%; font-size: 18px; padding: 10px; margin-bottom: 15px; background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); color: #333;">
+                ▶️ プログラム実行
+            </button>
+            
+            <xml id="toolbox" style="display: none">
+                <block type="cmd_led">
+                    <field name="COLOR">red</field>
+                    <field name="TIME">1</field>
+                </block>
+            </xml>
+
+            <div id="blocklyDiv" style="height: 450px; width: 100%; border: 2px solid #ccc; border-radius: 8px;"></div>
         </div>
     </div>
 </div>
 
-<script src="js/step2.js"></script>
+<script src="js/blockly_config.js"></script>
+<script src="js/step4.js"></script>
 </body>
 </html>
