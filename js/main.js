@@ -113,10 +113,19 @@ window.transferSharedHID = async function(outData) {
 
     if (isIOS) {
         let allPackets = [];
+        
         if (outData[0] === 248) {
             let packet = Array(19).fill(0);
             for (let i = 0; i < outData.length; i++) { packet[i] = outData[i]; }
             allPackets.push(packet);
+            
+        // ★追加: [253, 5] が送られてきた場合は、そのまま19バイトにして送信
+        } else if (outData[0] === 253 && outData[1] === 5 && outData.length <= 2) {
+            let packet = Array(19).fill(0);
+            packet[0] = 253;
+            packet[1] = 5;
+            allPackets.push(packet);
+            
         } else {
             let blockNum = 1;
             for (let i = 0; i < outData.length; i += 16) {
@@ -169,7 +178,6 @@ window.connectSharedDevice = async function() {
             window.sharedHidDevice = targetDevice;
             if (!window.sharedHidDevice.opened) {
                 await window.sharedHidDevice.open();
-                // ★変更: ここにあった await window.transferSharedHID([252]); を削除しました
             }
             return window.sharedHidDevice;
         } catch (error) {

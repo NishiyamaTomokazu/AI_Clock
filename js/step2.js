@@ -3,8 +3,6 @@ let gameActive = false;
 let currentQuestion = 0; 
 let targetColorValue = -1; 
 let timerId = null;
-
-// 連続失敗回数をカウントする変数
 let consecutiveFailures = 0; 
 
 const ledImage = document.getElementById('led-image');
@@ -14,6 +12,8 @@ const gameMessageEl = document.getElementById('game-message');
 const questionNumEl = document.getElementById('question-num');
 
 const colorTasks = { 0:"消灯させて", 1:"赤を点灯させて", 2:"緑を点灯させて", 3:"黄色を点灯させて", 4:"青を点灯させて", 5:"紫を点灯させて", 6:"水色を点灯させて", 7:"白を点灯させて" };
+
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 window.onDeviceDisconnected = function() {
     deviceStatusText.textContent = "未接続";
@@ -39,7 +39,6 @@ async function connectDevice() {
         if (device) {
             deviceStatusText.textContent = `接続中 (${device.productName})`;
             deviceStatusText.style.color = '#0ff';
-            sendStateToDevice();
             return true;
         }
     }
@@ -55,8 +54,14 @@ document.getElementById('connect-btn').addEventListener('click', async () => {
     const success = await connectDevice();
     if (success) {
         if (window.parent && window.parent.transferSharedHID) {
-            console.log("◆AI クロック接続コマンド送信: [252]");
-            await window.parent.transferSharedHID([252]);
+            // ★変更: iPadなら [253, 5] を、それ以外なら [252] を送信
+            if (isIOS) {
+                console.log("◆AI クロック接続確認コマンド送信(iPad): [253, 5]");
+                await window.parent.transferSharedHID([253, 5]);
+            } else {
+                console.log("◆AI クロック接続コマンド送信: [252]");
+                await window.parent.transferSharedHID([252]);
+            }
             sendStateToDevice();
         }
     } else {
@@ -71,15 +76,13 @@ async function sendStateToDevice() {
 }
 
 window.startGame = async function() {
-    if (!window.parent.sharedHidDevice || !window.parent.sharedHidDevice.opened) { 
+    if (!isIOS && (!window.parent.sharedHidDevice || !window.parent.sharedHidDevice.opened)) { 
         try { await connectDevice(); } catch(e) {}
     }
     
     appState = 8; render();
     gameActive = true; 
     currentQuestion = 0; 
-    // ★修正: ここにあった consecutiveFailures = 0; を削除しました
-    // これにより、スタートを押し直しても失敗回数が保持されます
     gameMessageEl.style.color = "#333"; 
     
     if (questionNumEl) questionNumEl.style.display = 'inline-block';
@@ -127,16 +130,12 @@ function nextQuestion() {
         if (gameActive) {
             gameActive = false; 
             targetColorValue = -1; 
-            
-            // 時間切れになったら連続失敗回数を増やす
             consecutiveFailures++; 
             
-            // 3回連続で失敗した場合の救済処理
             if (consecutiveFailures >= 3) {
                 questionNumEl.textContent = "終了！";
                 gameMessageEl.innerHTML = `難しかったかな？<br><span style="font-size: 22px; font-weight: bold; color: #764ba2;">STEP3に進みましょう</span>`;
                 
-                // 次に進むボタンを表示し、タブも解放する
                 const clearContainer = document.getElementById('clear-container');
                 if (clearContainer) clearContainer.style.display = 'block';
 
@@ -144,11 +143,8 @@ function nextQuestion() {
                     const step3Tab = window.parent.document.getElementById('tab-step3');
                     if (step3Tab) step3Tab.style.display = 'inline-block';
                 }
-
-                // ★追加: 救済を発動した後は、カウントを一度リセットする
                 consecutiveFailures = 0;
             } else {
-                // 3回未満の場合は通常の失敗メッセージ
                 questionNumEl.textContent = "タイムアップ";
                 gameMessageEl.innerHTML = `残念....<br><span style="font-size: 18px;">(正解数: ${currentQuestion - 1}問)</span>`; 
                 gameMessageEl.style.color = "red";
@@ -162,10 +158,7 @@ function checkGame() {
     if (appState === targetColorValue) {
         clearTimeout(timerId); 
         targetColorValue = -1; 
-        
-        // 正解したら連続失敗回数を0に戻す
         consecutiveFailures = 0; 
-        
         gameMessageEl.textContent = "正解！"; 
         gameMessageEl.style.color = "green";
         setTimeout(() => { if (gameActive) nextQuestion(); }, 600);
