@@ -114,13 +114,28 @@ window.transferSharedHID = async function(outData) {
     if (isIOS) {
         let allPackets = [];
         
-        // ★完全修正: 分岐や不要なヘッダー(253, 1, 1)をすべて削除し、
-        // どんなデータが来ても純粋にそのまま19バイトに区切って送るようにしました
-        for (let i = 0; i < outData.length; i += 19) {
+        // ★変更: データの先頭が「230」なら、ご指定の通り16バイト分割＆ヘッダー付与を行う
+        if (outData[0] === 230) {
+            let blockNum = 1;
+            for (let i = 0; i < outData.length; i += 16) {
+                let packet = Array(19).fill(0);
+                packet[0] = 253; // データ送信の目印
+                packet[1] = 1;   // LEDデータ転送の目印
+                packet[2] = blockNum; // ブロック番号
+                
+                let chunk = outData.slice(i, i + 16);
+                for (let j = 0; j < chunk.length; j++) { 
+                    packet[3 + j] = chunk[j]; 
+                }
+                allPackets.push(packet);
+                blockNum++;
+            }
+        } 
+        // ★変更: それ以外（手動LED操作の248や、実行コマンドの253など短いデータ）はそのまま19バイトで送る
+        else {
             let packet = Array(19).fill(0);
-            let chunk = outData.slice(i, i + 19);
-            for (let j = 0; j < chunk.length; j++) { 
-                packet[j] = chunk[j]; 
+            for (let i = 0; i < outData.length; i++) {
+                packet[i] = outData[i];
             }
             allPackets.push(packet);
         }
