@@ -121,8 +121,8 @@ document.getElementById('transfer-btn').addEventListener('click', async () => {
         return;
     }
 
-    // ★変更: iPad(iOS)の場合は [248, 0, 230, 2] を先頭にする
-    let hidBytes = isIOS ? [248, 0, 230, 2] : [240, 230, 2]; 
+    // ★変更: iPad(iOS)の場合は [248, 0, 0, 230, 2] を先頭にするように修正
+    let hidBytes = isIOS ? [248, 0, 0, 230, 2] : [240, 230, 2]; 
     let addr = 2; 
     let hasHardwareCommand = false;
     let currentBlock = startBlock.getNextBlock();
