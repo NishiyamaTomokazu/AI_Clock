@@ -78,11 +78,11 @@ document.getElementById('connect-btn').addEventListener('click', async () => {
     }
 });
 
-// ★修正: iPadでも手動操作のコマンドは送るように変更
 async function sendStateToDevice() {
     if (isSimulating) return; 
     if (window.parent && window.parent.transferSharedHID) {
-        try { await window.parent.transferSharedHID([248, 240, appState]); } catch (error) {}
+        // ★変更: 送信データを [248, 0, 色番号(appState)] に修正しました
+        try { await window.parent.transferSharedHID([248, 0, appState]); } catch (error) {}
     }
 }
 

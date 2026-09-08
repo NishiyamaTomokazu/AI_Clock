@@ -37,7 +37,6 @@ document.getElementById('connect-btn').addEventListener('click', async () => {
             if (isIOS) {
                 console.log("◆AI クロック接続確認コマンド送信(iPad): [253, 5]");
                 await window.parent.transferSharedHID([253, 5]);
-                // iPadの時は接続直後の自動リセットは送らない
             } else {
                 console.log("◆AI クロック接続コマンド送信: [252]");
                 await window.parent.transferSharedHID([252]);
@@ -61,10 +60,10 @@ async function connectDevice() {
     return false;
 }
 
-// ★修正: iPadでも手動操作のコマンドは送るように変更
 async function sendStateToDevice() {
     if (window.parent && window.parent.transferSharedHID) {
-        try { await window.parent.transferSharedHID([248, 240, appState]); } catch (error) {}
+        // ★変更: 送信データを [248, 0, 色番号(appState)] に修正しました
+        try { await window.parent.transferSharedHID([248, 0, appState]); } catch (error) {}
     }
 }
 
