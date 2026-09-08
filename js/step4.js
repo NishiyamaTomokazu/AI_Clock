@@ -121,7 +121,6 @@ document.getElementById('transfer-btn').addEventListener('click', async () => {
         return;
     }
 
-    // ★変更: iPad(iOS)の場合は [253, 1, 1, 230, 2] を先頭にするように修正しました
     let hidBytes = isIOS ? [253, 1, 1, 230, 2] : [240, 230, 2]; 
     let addr = 2; 
     let hasHardwareCommand = false;
@@ -171,7 +170,8 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     if (!startBlock) return;
 
     if (window.parent && window.parent.transferSharedHID) {
-        let runCommand = [241]; 
+        // ★変更: 実行コマンドをiPad(iOS)のときは [253, 2] に修正しました
+        let runCommand = isIOS ? [253, 2] : [241]; 
         console.log("◆実行コマンド送信:", runCommand);
         window.parent.transferSharedHID(runCommand); 
     } else {
