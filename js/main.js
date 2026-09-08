@@ -114,13 +114,19 @@ window.transferSharedHID = async function(outData) {
     if (isIOS) {
         let allPackets = [];
         
-        // ★修正: すでに 253 から始まるコマンド（[253, 5]など）はそのまま19バイトにして送る
-        if (outData[0] === 253) {
+        // ★修正: 手動操作コマンド(248)の場合は、カプセル化せずに19バイトにしてそのまま送る
+        if (outData[0] === 248) {
+            let packet = Array(19).fill(0);
+            for (let i = 0; i < outData.length; i++) { packet[i] = outData[i]; }
+            allPackets.push(packet);
+
+        // 接続確認コマンド(253)の場合も、そのまま19バイトにして送る
+        } else if (outData[0] === 253) {
             let packet = Array(19).fill(0);
             for (let i = 0; i < outData.length; i++) { packet[i] = outData[i]; }
             allPackets.push(packet);
             
-        // ★修正: それ以外の手動操作（248...）やプログラムデータは、すべて [253, 1, ブロック番号] のカプセルに包んで送る
+        // それ以外（プログラム転送など）は、[253, 1, ブロック番号] のカプセルに包んで送る
         } else {
             let blockNum = 1;
             for (let i = 0; i < outData.length; i += 16) {
