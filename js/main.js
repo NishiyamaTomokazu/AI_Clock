@@ -46,8 +46,8 @@ function sendCombinedDataBySound(packets) {
     const binaryPackets = packets.map(packet => packet.map(getBinary));
 
     let totalSamples = 0;
-    // ★変更: ブロック間の待機時間を 0.5秒(500ms) から 0.1秒(100ms) に変更しました
-    const waitSamples = Math.floor(sampleRate * 0.1);
+    // ★変更: ブロック間の待機時間を 100ms(0.1) から 500ms(0.5) に変更しました
+    const waitSamples = Math.floor(sampleRate * 0.5);
 
     binaryPackets.forEach((binaryDataArray) => {
         let est = 0;
@@ -100,7 +100,7 @@ function sendCombinedDataBySound(packets) {
     source.connect(audioCtxLocal.destination);
     source.start();
     
-    console.log("🔊 音声データを出力しました (ブロック間待機: 100ms)");
+    console.log("🔊 音声データを出力しました (ブロック間待機: 500ms)");
 }
 
 // ==========================================
