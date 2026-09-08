@@ -23,6 +23,9 @@ window.addEventListener('load', () => {
         }
     });
     resizeObserver.observe(blocklyDiv);
+
+    // ★追加: 読み込み時に左側ボタンの手動操作を無効化
+    disableManualButtons();
 });
 
 window.onDeviceDisconnected = function() {
@@ -39,9 +42,24 @@ window.addEventListener('DOMContentLoaded', () => {
     if (window.parent && window.parent.sharedHidDevice && window.parent.sharedHidDevice.opened) {
         deviceStatusText.textContent = `接続中 (${window.parent.sharedHidDevice.productName})`;
         deviceStatusText.style.color = '#0ff';
-        sendStateToDevice();
     }
+
+    // 初期状態は消灯・リセット
+    resetSimulator();
+    disableManualButtons();
 });
+
+// ★追加: 左側ボタンの手動操作（クリック/タップ）を全OSで無効化する関数
+function disableManualButtons() {
+    const buttonIds = ['red-on', 'red-off', 'green-on', 'green-off', 'blue-on', 'blue-off', 'end-btn'];
+    buttonIds.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.style.pointerEvents = 'none'; // マウス・タッチ操作を完全に無効化
+            btn.style.cursor = 'default';
+        }
+    });
+}
 
 async function connectDevice() {
     if (window.parent && window.parent.connectSharedDevice) {
@@ -70,7 +88,6 @@ document.getElementById('connect-btn').addEventListener('click', async () => {
             } else {
                 console.log("◆AI クロック接続コマンド送信: [252]");
                 await window.parent.transferSharedHID([252]);
-                sendStateToDevice();
             }
         }
     } else {
@@ -78,39 +95,50 @@ document.getElementById('connect-btn').addEventListener('click', async () => {
     }
 });
 
-async function sendStateToDevice() {
-    if (isSimulating) return; 
-    if (window.parent && window.parent.transferSharedHID) {
-        try { await window.parent.transferSharedHID([248, 0, appState]); } catch (error) {}
-    }
-}
-
+// ==========================================
+// シミュレーター画面の描画処理
+// ==========================================
 function render() {
     stateValText.textContent = appState;
     if (appState === 8) {
-        ledImage.style.backgroundColor = '#555'; ledImage.style.boxShadow = 'none';
-        document.getElementById('red-on').classList.remove('pressed'); document.getElementById('green-on').classList.remove('pressed'); document.getElementById('blue-on').classList.remove('pressed');
+        ledImage.style.backgroundColor = '#555'; 
+        ledImage.style.boxShadow = 'none';
+        document.getElementById('red-on').classList.remove('pressed'); 
+        document.getElementById('red-off').classList.remove('pressed');
+        document.getElementById('green-on').classList.remove('pressed'); 
+        document.getElementById('green-off').classList.remove('pressed');
+        document.getElementById('blue-on').classList.remove('pressed');
+        document.getElementById('blue-off').classList.remove('pressed');
     } else {
+        // ONボタンの連動
         document.getElementById('red-on').classList.toggle('pressed', (appState & 1) !== 0);
         document.getElementById('green-on').classList.toggle('pressed', (appState & 2) !== 0);
         document.getElementById('blue-on').classList.toggle('pressed', (appState & 4) !== 0);
-        if (appState === 0) { ledImage.style.backgroundColor = '#555'; ledImage.style.boxShadow = 'none'; } else {
+
+        // OFFボタンの連動（点灯していない色側のOFFボタンが凹む）
+        document.getElementById('red-off').classList.toggle('pressed', (appState & 1) === 0);
+        document.getElementById('green-off').classList.toggle('pressed', (appState & 2) === 0);
+        document.getElementById('blue-off').classList.toggle('pressed', (appState & 4) === 0);
+
+        if (appState === 0) { 
+            ledImage.style.backgroundColor = '#555'; 
+            ledImage.style.boxShadow = 'none'; 
+        } else {
             const r = (appState & 1) ? 255 : 0, g = (appState & 2) ? 255 : 0, b = (appState & 4) ? 255 : 0;
-            ledImage.style.backgroundColor = `rgb(${r}, ${g}, ${b})`; ledImage.style.boxShadow = `0 0 30px rgb(${r}, ${g}, ${b})`;
+            ledImage.style.backgroundColor = `rgb(${r}, ${g}, ${b})`; 
+            ledImage.style.boxShadow = `0 0 30px rgb(${r}, ${g}, ${b})`;
         }
     }
-    sendStateToDevice(); 
 }
 
-window.turnOn = function(value) { if (isSimulating) return; if (appState === 8) appState = 0; appState |= value; render(); }
-window.turnOff = function(value) { if (isSimulating) return; if (appState === 8) appState = 0; appState &= ~value; render(); }
-window.endApp = function() { if (isSimulating) return; appState = 8; render(); }
+function resetSimulator() {
+    appState = 8;
+    render();
+}
 
-document.getElementById('red-on').addEventListener('click', () => turnOn(1)); document.getElementById('red-off').addEventListener('click', () => turnOff(1));
-document.getElementById('green-on').addEventListener('click', () => turnOn(2)); document.getElementById('green-off').addEventListener('click', () => turnOff(2));
-document.getElementById('blue-on').addEventListener('click', () => turnOn(4)); document.getElementById('blue-off').addEventListener('click', () => turnOff(4));
-document.getElementById('end-btn').addEventListener('click', endApp);
-
+// ==========================================
+// プログラム転送処理
+// ==========================================
 document.getElementById('transfer-btn').addEventListener('click', async () => {
     if (isSimulating) return; 
     if (!window.workspace) return;
@@ -121,8 +149,6 @@ document.getElementById('transfer-btn').addEventListener('click', async () => {
         return;
     }
 
-    // ★変更: iPad(iOS)の場合は [230, 2] からスタートさせる
-    // これにより、main.js 側で自動的に 16バイト分割 ＆ 253, 1, ブロック番号 が付与されます。
     let hidBytes = isIOS ? [230, 2] : [240, 230, 2]; 
     let addr = 2; 
     let hasHardwareCommand = false;
@@ -164,6 +190,9 @@ document.getElementById('transfer-btn').addEventListener('click', async () => {
     }
 });
 
+// ==========================================
+// プログラム実行処理 (画面シミュレーション連動)
+// ==========================================
 document.getElementById('run-btn').addEventListener('click', async () => {
     if (isSimulating) return; 
     if (!window.workspace) return;
@@ -171,6 +200,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     const startBlock = window.workspace.getBlocksByType('cmd_start')[0];
     if (!startBlock) return;
 
+    // 1. マイコンへ実行コマンド送信
     if (window.parent && window.parent.transferSharedHID) {
         let runCommand = isIOS ? [253, 2] : [241]; 
         console.log("◆実行コマンド送信:", runCommand);
@@ -179,6 +209,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         alert("通信機能が見つかりません。");
     }
 
+    // 2. 画面上のLED・ON/OFFボタンの連動シミュレーション開始
     isSimulating = true;
     let currentBlock = startBlock.getNextBlock();
 
@@ -197,12 +228,14 @@ document.getElementById('run-btn').addEventListener('click', async () => {
                 case "white":  appState = 7; break;
                 case "off":    appState = 0; break;
             }
+            // 画面のON/OFFボタンとLEDを更新
             render(); 
             await wait(timeSec * 1000);
         }
         currentBlock = currentBlock.getNextBlock();
     }
 
+    // 3. プログラム終了時にシミュレーションを解除し、全て消灯
     isSimulating = false;
-    endApp(); 
+    resetSimulator(); 
 });
