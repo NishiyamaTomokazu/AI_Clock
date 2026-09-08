@@ -81,7 +81,6 @@ document.getElementById('connect-btn').addEventListener('click', async () => {
 async function sendStateToDevice() {
     if (isSimulating) return; 
     if (window.parent && window.parent.transferSharedHID) {
-        // ★変更: 送信データを [248, 0, 色番号(appState)] に修正しました
         try { await window.parent.transferSharedHID([248, 0, appState]); } catch (error) {}
     }
 }
@@ -122,7 +121,8 @@ document.getElementById('transfer-btn').addEventListener('click', async () => {
         return;
     }
 
-    let hidBytes = [240, 230, 2]; 
+    // ★変更: iPad(iOS)の場合は [248, 0, 230, 2] を先頭にする
+    let hidBytes = isIOS ? [248, 0, 230, 2] : [240, 230, 2]; 
     let addr = 2; 
     let hasHardwareCommand = false;
     let currentBlock = startBlock.getNextBlock();
