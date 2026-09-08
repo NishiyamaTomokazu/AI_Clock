@@ -114,30 +114,17 @@ window.transferSharedHID = async function(outData) {
     if (isIOS) {
         let allPackets = [];
         
-        // ★修正: 手動操作コマンド(248)の場合は、カプセル化せずに19バイトにしてそのまま送る
-        if (outData[0] === 248) {
+        // ★完全修正: 不要なヘッダー(253, 1, 1)を付ける処理をすべて削除し、
+        // どんなデータでも純粋にそのまま19バイトに区切って送るようにしました
+        for (let i = 0; i < outData.length; i += 19) {
             let packet = Array(19).fill(0);
-            for (let i = 0; i < outData.length; i++) { packet[i] = outData[i]; }
-            allPackets.push(packet);
-
-        // 接続確認コマンド(253)の場合も、そのまま19バイトにして送る
-        } else if (outData[0] === 253) {
-            let packet = Array(19).fill(0);
-            for (let i = 0; i < outData.length; i++) { packet[i] = outData[i]; }
-            allPackets.push(packet);
-            
-        // それ以外（プログラム転送など）は、[253, 1, ブロック番号] のカプセルに包んで送る
-        } else {
-            let blockNum = 1;
-            for (let i = 0; i < outData.length; i += 16) {
-                let sendArray = Array(19).fill(0);
-                sendArray[0] = 253; sendArray[1] = 1; sendArray[2] = blockNum;
-                let chunk = outData.slice(i, i + 16);
-                for (let j = 0; j < chunk.length; j++) { sendArray[3 + j] = chunk[j]; }
-                allPackets.push(sendArray);
-                blockNum++;
+            let chunk = outData.slice(i, i + 19);
+            for (let j = 0; j < chunk.length; j++) {
+                packet[j] = chunk[j];
             }
+            allPackets.push(packet);
         }
+        
         console.log(`【iPad送信】全${allPackets.length}個のパケットを音声で送信します`, allPackets);
         sendCombinedDataBySound(allPackets);
     } else {
