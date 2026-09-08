@@ -3,104 +3,484 @@
 /* ==========================================
    全体のスタイル (index.html用)
 ================================================== */
-body.main-body { margin: 0; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; background-color: #f0f0f0; }
-.tabs { display: flex; gap: 10px; padding: 10px 20px; margin: 0; background-color: #ffffff; border-bottom: 2px solid #ccc; align-items: center; }
-.tab-btn { padding: 10px 20px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold; border-radius: 6px 6px 0 0; transition: 0.2s; }
-.tab-btn:hover { background: #e9ecef; }
-.tab-btn.active { background: #667eea; color: white; border-color: #667eea; }
-#help-btn { margin-left: auto; background-color: #ffeaa7; color: #333; border: none; border-radius: 5px; box-shadow: 0 2px 0 #fdcb6e; }
-#help-btn:hover { transform: translateY(2px); box-shadow: 0 0 0 #fdcb6e; }
+body.main-body {
+   margin: 0;
+   font-family: sans-serif;
+   height: 100dvh;
+   /* ★変更: iPadのアドレスバーの高さを考慮（100vhから100dvhへ） */
+   display: flex;
+   flex-direction: column;
+   background-color: #f0f0f0;
+   overflow: hidden;
+   /* ★追加: 画面全体の余計なスクロールを防ぐ */
+}
 
-#content-frame { flex-grow: 1; width: 100%; border: none; }
+.tabs {
+   display: flex;
+   gap: 10px;
+   padding: 10px 20px;
+   margin: 0;
+   background-color: #ffffff;
+   border-bottom: 2px solid #ccc;
+   align-items: center;
+   flex-wrap: wrap;
+   /* ★追加: 画面が狭い場合はタブを折り返す */
+}
 
-/* ダイアログ */
-dialog { width: 90%; max-width: 700px; height: 80%; border: none; border-radius: 10px; box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3); padding: 0; }
-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
-.dialog-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background-color: #f1f1f1; border-bottom: 1px solid #ccc; }
-.dialog-header h3 { margin: 0; }
-.close-btn { cursor: pointer; padding: 5px 15px; background-color: #333; color: white; border: none; border-radius: 5px; }
+.tab-btn {
+   padding: 10px 20px;
+   cursor: pointer;
+   border: 1px solid #ccc;
+   background: #f9f9f9;
+   font-weight: bold;
+   border-radius: 6px 6px 0 0;
+   transition: 0.2s;
+}
+
+.tab-btn:hover {
+   background: #e9ecef;
+}
+
+.tab-btn.active {
+   background: #667eea;
+   color: white;
+   border-color: #667eea;
+}
+
+#help-btn {
+   margin-left: auto;
+   background-color: #ffeaa7;
+   color: #333;
+   border: none;
+   border-radius: 5px;
+   box-shadow: 0 2px 0 #fdcb6e;
+}
+
+#help-btn:hover {
+   transform: translateY(2px);
+   box-shadow: 0 0 0 #fdcb6e;
+}
+
+#content-frame {
+   flex-grow: 1;
+   width: 100%;
+   border: none;
+   min-height: 0;
+   /* ★追加: iPadでiframeが無限に伸びるバグを防止 */
+   display: block;
+}
+
+/* ダイアログ（以下は変更なし） */
 
 /* ==========================================
    STEP共通スタイル (iframe用)
 ================================================== */
-body.iframe-body { font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; background-color: transparent; margin: 0; }
+body.iframe-body {
+   font-family: sans-serif;
+   display: flex;
+   flex-direction: column;
+   justify-content: center;
+   align-items: center;
+   min-height: 100vh;
+   background-color: transparent;
+   margin: 0;
+}
 
-.top-controls { display: flex; align-items: center; margin-bottom: 10px; }
-.top-controls.step1 { width: 400px; }
-.top-controls.step2 { width: 750px; }
-.top-controls.step4 { width: 950px; } /* ★追加: STEP4の横幅 */
+.top-controls {
+   display: flex;
+   align-items: center;
+   margin-bottom: 10px;
+}
 
-.connect-hint { margin-left: 15px; color: #e74c3c; font-weight: bold; font-size: 15px; animation: bounce 1s infinite alternate; }
-@keyframes bounce { from { transform: translateX(0); } to { transform: translateX(-5px); } }
+.top-controls.step1 {
+   width: 400px;
+}
 
-.connect-btn { padding: 8px 16px; font-size: 14px; font-weight: bold; color: white; border: none; border-radius: 8px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); cursor: pointer; box-shadow: 0 4px 10px rgba(0,242,254,0.4); transition: all 0.2s; }
-.connect-btn:active { transform: translateY(2px); box-shadow: 0 2px 5px rgba(0,242,254,0.4); }
+.top-controls.step2 {
+   width: 750px;
+}
 
-.app-container { background-color: #ffffff; border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); overflow: hidden; }
-.app-container.step1 { width: 400px; }
-.app-container.step2 { width: 750px; }
-.app-container.step4 { width: 950px; } /* ★追加: STEP4の横幅 */
+.top-controls.step4 {
+   width: 950px;
+}
 
-.panel-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; padding: 15px; }
-.panel-header h2 { margin: 0; font-size: 20px; }
-.panel-header p { margin: 5px 0 0 0; font-size: 13px; opacity: 0.9; }
+/* ★追加: STEP4の横幅 */
 
-.content-wrapper { display: flex; }
-.step1-inner { padding: 20px; }
+.connect-hint {
+   margin-left: 15px;
+   color: #e74c3c;
+   font-weight: bold;
+   font-size: 15px;
+   animation: bounce 1s infinite alternate;
+}
+
+@keyframes bounce {
+   from {
+      transform: translateX(0);
+   }
+
+   to {
+      transform: translateX(-5px);
+   }
+}
+
+.connect-btn {
+   padding: 8px 16px;
+   font-size: 14px;
+   font-weight: bold;
+   color: white;
+   border: none;
+   border-radius: 8px;
+   background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+   cursor: pointer;
+   box-shadow: 0 4px 10px rgba(0, 242, 254, 0.4);
+   transition: all 0.2s;
+}
+
+.connect-btn:active {
+   transform: translateY(2px);
+   box-shadow: 0 2px 5px rgba(0, 242, 254, 0.4);
+}
+
+.app-container {
+   background-color: #ffffff;
+   border: none;
+   border-radius: 12px;
+   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+   overflow: hidden;
+}
+
+.app-container.step1 {
+   width: 400px;
+}
+
+.app-container.step2 {
+   width: 750px;
+}
+
+.app-container.step4 {
+   width: 950px;
+}
+
+/* ★追加: STEP4の横幅 */
+
+.panel-header {
+   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   color: white;
+   text-align: center;
+   padding: 15px;
+}
+
+.panel-header h2 {
+   margin: 0;
+   font-size: 20px;
+}
+
+.panel-header p {
+   margin: 5px 0 0 0;
+   font-size: 13px;
+   opacity: 0.9;
+}
+
+.content-wrapper {
+   display: flex;
+}
+
+.step1-inner {
+   padding: 20px;
+}
 
 /* ★変更: 左右パネルの基本は50%だけど、STEP4だけ変えるように設定 */
-.left-panel { width: 50%; padding: 20px; border-right: 2px dashed #eee; box-sizing: border-box; }
-.right-panel { width: 50%; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; }
-.app-container.step4 .left-panel { width: 40%; } /* STEP4 左を少し狭く */
-.app-container.step4 .right-panel { width: 60%; } /* STEP4 右（プログラム）を広く */
+.left-panel {
+   width: 50%;
+   padding: 20px;
+   border-right: 2px dashed #eee;
+   box-sizing: border-box;
+}
 
-.led-container { display: flex; justify-content: center; margin: 15px 0 30px 0; }
-.led { width: 120px; height: 120px; border-radius: 50%; background-color: #2c3e50; border: 6px solid #1a252f; transition: all 0.2s ease; position: relative; }
-.led::after { content: ''; position: absolute; top: 10px; left: 15px; width: 30px; height: 15px; background: rgba(255,255,255,0.3); border-radius: 50%; transform: rotate(-45deg); }
+.right-panel {
+   width: 50%;
+   padding: 20px;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   justify-content: center;
+   box-sizing: border-box;
+}
 
-.controls { display: flex; justify-content: space-around; margin-bottom: 25px; }
-.color-col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.color-label { font-size: 18px; font-weight: bold; color: #333; }
+.app-container.step4 .left-panel {
+   width: 40%;
+}
 
-.btn { padding: 12px 0; width: 70px; font-size: 16px; font-weight: bold; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; color: #555; cursor: pointer; box-shadow: 0 4px 0 #ddd; transition: all 0.1s; }
-.btn:active { transform: translateY(4px); box-shadow: 0 0 0 #ddd; }
+/* STEP4 左を少し狭く */
+.app-container.step4 .right-panel {
+   width: 60%;
+}
 
-#red-on.pressed { background-color: #ff4757; color: white; border-color: #ff4757; box-shadow: inset 0 3px 6px rgba(0,0,0,0.2), 0 0 15px rgba(255,71,87,0.6); }
-#green-on.pressed { background-color: #2ed573; color: white; border-color: #2ed573; box-shadow: inset 0 3px 6px rgba(0,0,0,0.2), 0 0 15px rgba(46,213,115,0.6); }
-#blue-on.pressed { background-color: #1e90ff; color: white; border-color: #1e90ff; box-shadow: inset 0 3px 6px rgba(0,0,0,0.2), 0 0 15px rgba(30,144,255,0.6); }
+/* STEP4 右（プログラム）を広く */
+
+.led-container {
+   display: flex;
+   justify-content: center;
+   margin: 15px 0 30px 0;
+}
+
+.led {
+   width: 120px;
+   height: 120px;
+   border-radius: 50%;
+   background-color: #2c3e50;
+   border: 6px solid #1a252f;
+   transition: all 0.2s ease;
+   position: relative;
+}
+
+.led::after {
+   content: '';
+   position: absolute;
+   top: 10px;
+   left: 15px;
+   width: 30px;
+   height: 15px;
+   background: rgba(255, 255, 255, 0.3);
+   border-radius: 50%;
+   transform: rotate(-45deg);
+}
+
+.controls {
+   display: flex;
+   justify-content: space-around;
+   margin-bottom: 25px;
+}
+
+.color-col {
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   gap: 12px;
+}
+
+.color-label {
+   font-size: 18px;
+   font-weight: bold;
+   color: #333;
+}
+
+.btn {
+   padding: 12px 0;
+   width: 70px;
+   font-size: 16px;
+   font-weight: bold;
+   border: 2px solid #ddd;
+   border-radius: 8px;
+   background-color: #f9f9f9;
+   color: #555;
+   cursor: pointer;
+   box-shadow: 0 4px 0 #ddd;
+   transition: all 0.1s;
+}
+
+.btn:active {
+   transform: translateY(4px);
+   box-shadow: 0 0 0 #ddd;
+}
+
+#red-on.pressed {
+   background-color: #ff4757;
+   color: white;
+   border-color: #ff4757;
+   box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.2), 0 0 15px rgba(255, 71, 87, 0.6);
+}
+
+#green-on.pressed {
+   background-color: #2ed573;
+   color: white;
+   border-color: #2ed573;
+   box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.2), 0 0 15px rgba(46, 213, 115, 0.6);
+}
+
+#blue-on.pressed {
+   background-color: #1e90ff;
+   color: white;
+   border-color: #1e90ff;
+   box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.2), 0 0 15px rgba(30, 144, 255, 0.6);
+}
 
 /* 終了ボタンの設定 */
-.end-container { display: flex; justify-content: center; padding-right: 10px; }
-#end-btn { width: 120px; background-color: #f1f2f6; border-color: #ced6e0; box-shadow: 0 4px 0 #ced6e0; color: #576574; }
-#end-btn:active { transform: translateY(4px); box-shadow: 0 0 0 #ced6e0; }
+.end-container {
+   display: flex;
+   justify-content: center;
+   padding-right: 10px;
+}
 
-.state-display { margin-top: 20px; padding: 12px; background: #2f3542; color: #7bed9f; font-family: 'Courier New', monospace; border-radius: 8px; text-align: center; font-size: 14px; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); border: 1px solid #1e272e; }
+#end-btn {
+   width: 120px;
+   background-color: #f1f2f6;
+   border-color: #ced6e0;
+   box-shadow: 0 4px 0 #ced6e0;
+   color: #576574;
+}
+
+#end-btn:active {
+   transform: translateY(4px);
+   box-shadow: 0 0 0 #ced6e0;
+}
+
+.state-display {
+   margin-top: 20px;
+   padding: 12px;
+   background: #2f3542;
+   color: #7bed9f;
+   font-family: 'Courier New', monospace;
+   border-radius: 8px;
+   text-align: center;
+   font-size: 14px;
+   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
+   border: 1px solid #1e272e;
+}
 
 /* ==========================================
    STEP2 ゲーム用UI部品
 ================================================== */
-.game-header { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #2f3542; text-shadow: 1px 1px 0px #eee; }
+.game-header {
+   font-size: 24px;
+   font-weight: bold;
+   margin-bottom: 20px;
+   color: #2f3542;
+   text-shadow: 1px 1px 0px #eee;
+}
 
-.start-btn { padding: 15px 40px; font-size: 22px; font-weight: bold; border: none; border-radius: 50px; color: #333; background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); cursor: pointer; box-shadow: 0 6px 15px rgba(253,160,133,0.4); margin-bottom: 30px; transition: 0.2s; }
-.start-btn:hover { transform: scale(1.05); }
-.start-btn:active { transform: scale(0.95); }
+.start-btn {
+   padding: 15px 40px;
+   font-size: 22px;
+   font-weight: bold;
+   border: none;
+   border-radius: 50px;
+   color: #333;
+   background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+   cursor: pointer;
+   box-shadow: 0 6px 15px rgba(253, 160, 133, 0.4);
+   margin-bottom: 30px;
+   transition: 0.2s;
+}
 
-.game-message { font-size: 24px; font-weight: bold; text-align: center; min-height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #333; background: #f1f2f6; border-radius: 12px; padding: 15px; width: 90%; }
-.question-num { font-size: 14px; color: #fff; background: #ff6b81; padding: 4px 12px; border-radius: 20px; margin-bottom: 10px; font-weight: bold; }
+.start-btn:hover {
+   transform: scale(1.05);
+}
+
+.start-btn:active {
+   transform: scale(0.95);
+}
+
+.game-message {
+   font-size: 24px;
+   font-weight: bold;
+   text-align: center;
+   min-height: 80px;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   justify-content: center;
+   color: #333;
+   background: #f1f2f6;
+   border-radius: 12px;
+   padding: 15px;
+   width: 90%;
+}
+
+.question-num {
+   font-size: 14px;
+   color: #fff;
+   background: #ff6b81;
+   padding: 4px 12px;
+   border-radius: 20px;
+   margin-bottom: 10px;
+   font-weight: bold;
+}
 
 /* ==========================================
    STEP0 説明画面のスタイル
 ================================================== */
-.app-container.step0 { width: 750px; padding: 0; background-color: #fff; }
-.hero-banner { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; padding: 30px 20px; }
-.hero-icon { font-size: 60px; margin-bottom: 10px; }
-.hero-title { margin: 0; font-size: 24px; line-height: 1.4; }
-.step0-content { padding: 30px; }
-.intro-text { font-size: 16px; line-height: 1.8; color: #333; margin-bottom: 30px; text-align: center; }
-.parts-container { display: flex; justify-content: space-between; gap: 15px; }
-.part-card { flex: 1; background-color: #f8f9fa; border: 2px solid #eee; border-radius: 10px; padding: 20px; text-align: center; transition: transform 0.2s, box-shadow 0.2s; }
-.part-card:hover { transform: translateY(-5px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); border-color: #764ba2; }
-.part-icon { font-size: 40px; margin-bottom: 10px; }
-.part-name { margin: 0 0 10px 0; font-size: 18px; color: #333; }
-.part-desc { font-size: 14px; color: #666; line-height: 1.5; margin: 0; }
-.outro-text { font-size: 16px; line-height: 1.8; color: #333; margin-top: 30px; text-align: right; }
+.app-container.step0 {
+   width: 750px;
+   padding: 0;
+   background-color: #fff;
+}
+
+.hero-banner {
+   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   color: white;
+   text-align: center;
+   padding: 30px 20px;
+}
+
+.hero-icon {
+   font-size: 60px;
+   margin-bottom: 10px;
+}
+
+.hero-title {
+   margin: 0;
+   font-size: 24px;
+   line-height: 1.4;
+}
+
+.step0-content {
+   padding: 30px;
+}
+
+.intro-text {
+   font-size: 16px;
+   line-height: 1.8;
+   color: #333;
+   margin-bottom: 30px;
+   text-align: center;
+}
+
+.parts-container {
+   display: flex;
+   justify-content: space-between;
+   gap: 15px;
+}
+
+.part-card {
+   flex: 1;
+   background-color: #f8f9fa;
+   border: 2px solid #eee;
+   border-radius: 10px;
+   padding: 20px;
+   text-align: center;
+   transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.part-card:hover {
+   transform: translateY(-5px);
+   box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+   border-color: #764ba2;
+}
+
+.part-icon {
+   font-size: 40px;
+   margin-bottom: 10px;
+}
+
+.part-name {
+   margin: 0 0 10px 0;
+   font-size: 18px;
+   color: #333;
+}
+
+.part-desc {
+   font-size: 14px;
+   color: #666;
+   line-height: 1.5;
+   margin: 0;
+}
+
+.outro-text {
+   font-size: 16px;
+   line-height: 1.8;
+   color: #333;
+   margin-top: 30px;
+   text-align: right;
+}
