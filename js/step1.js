@@ -34,15 +34,15 @@ document.getElementById('connect-btn').addEventListener('click', async () => {
     const success = await connectDevice();
     if (success) {
         if (window.parent && window.parent.transferSharedHID) {
-            // ★変更: iPadなら [253, 5] を、それ以外なら [252] を送信
             if (isIOS) {
                 console.log("◆AI クロック接続確認コマンド送信(iPad): [253, 5]");
                 await window.parent.transferSharedHID([253, 5]);
+                // ★修正: iPadの場合はHID用の状態同期を行わない
             } else {
                 console.log("◆AI クロック接続コマンド送信: [252]");
                 await window.parent.transferSharedHID([252]);
+                sendStateToDevice();
             }
-            sendStateToDevice();
         }
     } else {
         alert('デバイスの接続に失敗したか、キャンセルされました。');
@@ -63,7 +63,12 @@ async function connectDevice() {
 
 async function sendStateToDevice() {
     if (window.parent && window.parent.transferSharedHID) {
-        try { await window.parent.transferSharedHID([248, 240, appState]); } catch (error) {}
+        try { 
+            // ★修正: Windows/ChromeOS (HID) の時だけデータを送信する
+            if (!isIOS) {
+                await window.parent.transferSharedHID([248, 240, appState]); 
+            }
+        } catch (error) {}
     }
 }
 
