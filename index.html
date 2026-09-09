@@ -14,6 +14,7 @@
         <button class="tab-btn" onclick="loadTab('step2.html', this)">STEP2</button>
         <button class="tab-btn" id="tab-step3" style="display: none;" onclick="loadTab('step3.html', this)">STEP3</button>
         <button class="tab-btn" id="tab-step4" style="display: none;" onclick="loadTab('step4.html', this)">STEP4</button>
+        <button class="tab-btn" id="tab-step5" style="display: none;" onclick="loadTab('step5.html', this)">STEP5</button>
         
         <button class="tab-btn" id="help-btn" onclick="openHelp()">❓ ヘルプを開く</button>
     </div>
@@ -28,6 +29,40 @@
         <iframe id="help-frame" style="width: 100%; height: calc(100% - 50px); border: none;"></iframe>
     </dialog>
 
-    <script src="js/main.js"></script>
+<!-- ヘルプ表示用の共通スクリプト (既存のmain.jsから抜き出し) -->
+    <script>
+        let currentHelpUrl = 'help/step1_help.html';
+
+        function loadTab(url, btnElement) {
+            const frame = document.getElementById('content-frame');
+            currentHelpUrl = 'help/' + url.replace('.html', '_help.html');
+            frame.src = url;
+            document.querySelectorAll('.tab-btn:not(#help-btn)').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+        }
+
+        function openHelp() {
+            const dialog = document.getElementById('help-dialog');
+            document.getElementById('help-frame').src = currentHelpUrl;
+            dialog.showModal();
+        }
+
+        function closeHelp() { 
+            document.getElementById('help-dialog').close(); 
+        }
+
+        // ==========================================
+        // OSを判定して適切な通信モジュールを読み込む
+        // ==========================================
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        
+        const script = document.createElement('script');
+        if (isIOS) {
+            script.src = 'js/main_ipad.js';
+        } else {
+            script.src = 'js/main_webhid.js';
+        }
+        document.body.appendChild(script);
+    </script>
 </body>
 </html>
