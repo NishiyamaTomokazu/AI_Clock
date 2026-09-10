@@ -21,14 +21,14 @@ window.connectSharedDevice = async function() {
         }
         
         const devices = await navigator.hid.getDevices();
-        let targetDevice = devices.find(d => d.vendorId === 0x21CF); // AIクロックのVendor ID
+        let targetDevice = devices.find(d => d.vendorId === 0x21CF); 
         
         if (!targetDevice) {
             const requested = await navigator.hid.requestDevice({ filters: [{ vendorId: 0x21CF }] });
             if (requested.length > 0) { 
                 targetDevice = requested[0]; 
             } else { 
-                return null; // キャンセルされた
+                return null; 
             }
         }
         
@@ -36,7 +36,28 @@ window.connectSharedDevice = async function() {
         if (!window.sharedHidDevice.opened) {
             await window.sharedHidDevice.open();
         }
+        
         console.log("🔌 WebHID デバイス接続成功:", targetDevice.productName);
+
+        // ★追加: マイコンからのデータ受信（Input Report）を待ち受ける
+        if (!window.sharedHidDevice.hasInputListener) {
+            window.sharedHidDevice.addEventListener('inputreport', (event) => {
+                const { data } = event;
+                const receivedBytes = Array.from(new Uint8Array(data.buffer));
+                
+                console.log("📥 [WebHID受信]", receivedBytes);
+
+                // アプリ画面(STEP5などのiframe)へ、受信したデータをイベントとして通知する
+                const frame = document.getElementById('content-frame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.dispatchEvent(new CustomEvent('hid-input', {
+                        detail: { data: receivedBytes }
+                    }));
+                }
+            });
+            window.sharedHidDevice.hasInputListener = true;
+        }
+
         return window.sharedHidDevice;
         
     } catch (error) {
@@ -54,21 +75,13 @@ window.transferSharedHID = async function(outData) {
         return;
     }
 
-    // 手動LED操作(248)は19バイトのパケットにする必要があるため、0で埋めて拡張する
-    if (outData[0] === 248 && outData.length < 19) {
-        let padded = Array(19).fill(0);
-        for (let i = 0; i < outData.length; i++) {
-            padded[i] = outData[i];
-        }
-        outData = padded;
-    }
-
     const outputReport = new Uint8Array([0]);
     console.log("【WebHID送信】データ送信を開始します...");
     
     for (let i = 0; i < outData.length; i++) {
         outputReport[0] = outData[i];
         await window.sharedHidDevice.sendReport(0x00, outputReport);
+        console.log(`送信中 (${i + 1}/${outData.length}): ${outData[i]}`);
         await wait(90); 
     }
     console.log("【WebHID送信】データ送信が完了しました。");

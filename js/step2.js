@@ -69,9 +69,13 @@ document.getElementById('connect-btn').addEventListener('click', async () => {
 });
 
 async function sendStateToDevice() {
+    // ★修正: 未定義だった isSimulating のチェックを削除しました
     if (window.parent && window.parent.transferSharedHID) {
-        // ★変更: 送信データを [248, 0, 色番号(appState)] に修正しました
-        try { await window.parent.transferSharedHID([248, 0, appState]); } catch (error) {}
+        try { 
+            await window.parent.transferSharedHID([248, 240, appState]); 
+        } catch (error) {
+            console.error("LED送信エラー:", error);
+        }
     }
 }
 

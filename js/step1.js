@@ -24,6 +24,18 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+async function connectDevice() {
+    if (window.parent && window.parent.connectSharedDevice) {
+        const device = await window.parent.connectSharedDevice();
+        if (device) {
+            deviceStatusText.textContent = `接続中 (${device.productName})`;
+            deviceStatusText.style.color = '#0ff';
+            return true;
+        }
+    }
+    return false;
+}
+
 document.getElementById('connect-btn').addEventListener('click', async () => {
     const hint = document.getElementById('connect-hint');
     if (hint) hint.style.display = 'none';
@@ -48,29 +60,21 @@ document.getElementById('connect-btn').addEventListener('click', async () => {
     }
 });
 
-async function connectDevice() {
-    if (window.parent && window.parent.connectSharedDevice) {
-        const device = await window.parent.connectSharedDevice();
-        if (device) {
-            deviceStatusText.textContent = `接続中 (${device.productName})`;
-            deviceStatusText.style.color = '#0ff';
-            return true;
-        }
-    }
-    return false;
-}
-
 async function sendStateToDevice() {
     if (window.parent && window.parent.transferSharedHID) {
-        // ★変更: 送信データを [248, 0, 色番号(appState)] に修正しました
-        try { await window.parent.transferSharedHID([248, 0, appState]); } catch (error) {}
+        try { 
+            await window.parent.transferSharedHID([248, 240, appState]); 
+        } catch (error) {
+            console.error("LED送信エラー:", error);
+        }
     }
 }
 
 function render() {
     stateValText.textContent = appState;
     if (appState === 8) {
-        ledImage.style.backgroundColor = '#555'; ledImage.style.boxShadow = 'none';
+        ledImage.style.backgroundColor = '#555'; 
+        ledImage.style.boxShadow = 'none';
         document.getElementById('red-on').classList.remove('pressed');
         document.getElementById('green-on').classList.remove('pressed');
         document.getElementById('blue-on').classList.remove('pressed');
@@ -79,9 +83,12 @@ function render() {
         document.getElementById('green-on').classList.toggle('pressed', (appState & 2) !== 0);
         document.getElementById('blue-on').classList.toggle('pressed', (appState & 4) !== 0);
         if (appState === 0) {
-            ledImage.style.backgroundColor = '#555'; ledImage.style.boxShadow = 'none';
+            ledImage.style.backgroundColor = '#555'; 
+            ledImage.style.boxShadow = 'none';
         } else {
-            const r = (appState & 1) ? 255 : 0, g = (appState & 2) ? 255 : 0, b = (appState & 4) ? 255 : 0;
+            const r = (appState & 1) ? 255 : 0;
+            const g = (appState & 2) ? 255 : 0;
+            const b = (appState & 4) ? 255 : 0;
             ledImage.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
             ledImage.style.boxShadow = `0 0 30px rgb(${r}, ${g}, ${b})`;
         }
@@ -89,9 +96,22 @@ function render() {
     sendStateToDevice();
 }
 
-window.turnOn = function(value) { if (appState === 8) appState = 0; appState |= value; render(); }
-window.turnOff = function(value) { if (appState === 8) appState = 0; appState &= ~value; render(); }
-window.endApp = function() { appState = 8; render(); }
+window.turnOn = function(value) { 
+    if (appState === 8) appState = 0; 
+    appState |= value; 
+    render(); 
+};
+
+window.turnOff = function(value) { 
+    if (appState === 8) appState = 0; 
+    appState &= ~value; 
+    render(); 
+};
+
+window.endApp = function() { 
+    appState = 8; 
+    render(); 
+};
 
 document.getElementById('red-on').addEventListener('click', () => turnOn(1));
 document.getElementById('red-off').addEventListener('click', () => turnOff(1));
@@ -100,4 +120,5 @@ document.getElementById('green-off').addEventListener('click', () => turnOff(2))
 document.getElementById('blue-on').addEventListener('click', () => turnOn(4));
 document.getElementById('blue-off').addEventListener('click', () => turnOff(4));
 document.getElementById('end-btn').addEventListener('click', endApp);
+
 render();
