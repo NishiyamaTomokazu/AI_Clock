@@ -24,7 +24,7 @@
         <p class="intro-text" style="text-align: left; margin-bottom: 40px;">
             それを叶えるのが<strong>「プログラミング」</strong>！<br>
             コンピュータに「こうやって動いてね」と指示を出せば、キミの代わりにいつでも正確に魔法をかけてくれるようになるんだ。<br>
-            STEP4からは、いよいよプログラムを組んでLEDと音センサを操るよ。本当の魔法使いになる準備はいいかな？
+            STEP4からは、いよいよプログラムを組んでLEDと音センサや押しボタンを操るよ。本当の魔法使いになる準備はいいかな？
         </p>
 
         <div style="text-align: center;">
@@ -36,18 +36,36 @@
 </div>
 
 <script>
-    function goToStep4() {
-        if (window.parent && window.parent.document) {
-            // ★修正: STEP4のタブ要素を取得して、表示してからクリックする
-            const step4Tab = window.parent.document.getElementById('tab-step4');
-            if (step4Tab) {
-                step4Tab.style.display = 'inline-block'; // タブを表示
-                step4Tab.click(); // タブをクリックして移動
-            } else {
-                alert("STEP4のタブが見つかりません");
-            }
+    window.goToStep4 = function() {
+    if (window.parent && window.parent.document) {
+        // STEP4のタブを表示してクリック
+        const step4Tab = window.parent.document.getElementById('tab-step4');
+        if (step4Tab) {
+            step4Tab.style.display = 'inline-block';
+            step4Tab.click();
+        }
+        // ★追加: 同時にSTEP5のタブも表示する
+        const step5Tab = window.parent.document.getElementById('tab-step5');
+        if (step5Tab) {
+            step5Tab.style.display = 'inline-block';
+        }
+        // ★追加: STEP6のタブも同時に表示する
+        const step6Tab = window.parent.document.getElementById('tab-step6');
+        if (step6Tab) {
+            step6Tab.style.display = 'inline-block';
+        }
+        // ★追加: STEP7のタブも同時に表示する
+        const step7Tab = window.parent.document.getElementById('tab-step7');
+        if (step7Tab) {
+            step7Tab.style.display = 'inline-block';
+        }
+        // js/step3.js の goToStep4 関数内の末尾に追加
+        const step8Tab = window.parent.document.getElementById('tab-step8');
+        if (step8Tab) {
+            step8Tab.style.display = 'inline-block';
         }
     }
+}
 </script>
 
 </body>
