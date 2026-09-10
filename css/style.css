@@ -7,12 +7,10 @@ body.main-body {
    margin: 0;
    font-family: sans-serif;
    height: 100dvh;
-   /* ★変更: iPadのアドレスバーの高さを考慮（100vhから100dvhへ） */
    display: flex;
    flex-direction: column;
    background-color: #f0f0f0;
    overflow: hidden;
-   /* ★追加: 画面全体の余計なスクロールを防ぐ */
 }
 
 .tabs {
@@ -24,7 +22,6 @@ body.main-body {
    border-bottom: 2px solid #ccc;
    align-items: center;
    flex-wrap: wrap;
-   /* ★追加: 画面が狭い場合はタブを折り返す */
 }
 
 .tab-btn {
@@ -66,11 +63,8 @@ body.main-body {
    width: 100%;
    border: none;
    min-height: 0;
-   /* ★追加: iPadでiframeが無限に伸びるバグを防止 */
    display: block;
 }
-
-/* ダイアログ（以下は変更なし） */
 
 /* ==========================================
    STEP共通スタイル (iframe用)
@@ -100,11 +94,14 @@ body.iframe-body {
    width: 750px;
 }
 
-.top-controls.step4 {
+/* STEP4,5の横幅 */
+.top-controls.step4,
+.top-controls.step5,
+.top-controls.step6,
+.top-controls.step7,
+.top-controls.step8 {
    width: 950px;
 }
-
-/* ★追加: STEP4の横幅 */
 
 .connect-hint {
    margin-left: 15px;
@@ -158,11 +155,14 @@ body.iframe-body {
    width: 750px;
 }
 
-.app-container.step4 {
+/* STEP4,5,6,7,8の横幅 */
+.app-container.step4,
+.app-container.step5,
+.app-container.step6,
+.app-container.step7,
+.app-container.step8 {
    width: 950px;
 }
-
-/* ★追加: STEP4の横幅 */
 
 .panel-header {
    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -190,7 +190,7 @@ body.iframe-body {
    padding: 20px;
 }
 
-/* ★変更: 左右パネルの基本は50%だけど、STEP4だけ変えるように設定 */
+/* 左右パネルの設定 */
 .left-panel {
    width: 50%;
    padding: 20px;
@@ -208,16 +208,22 @@ body.iframe-body {
    box-sizing: border-box;
 }
 
-.app-container.step4 .left-panel {
+/* STEP4,5,6,7,8 左パネルを少し狭く、右パネルを広く */
+.app-container.step4 .left-panel,
+.app-container.step5 .left-panel,
+.app-container.step6 .left-panel,
+.app-container.step7 .left-panel,
+.app-container.step8 .left-panel {
    width: 40%;
 }
 
-/* STEP4 左を少し狭く */
-.app-container.step4 .right-panel {
+.app-container.step4 .right-panel,
+.app-container.step5 .right-panel,
+.app-container.step6 .right-panel,
+.app-container.step7 .right-panel,
+.app-container.step8 .right-panel {
    width: 60%;
 }
-
-/* STEP4 右（プログラム）を広く */
 
 .led-container {
    display: flex;
@@ -483,4 +489,15 @@ body.iframe-body {
    color: #333;
    margin-top: 30px;
    text-align: right;
+}
+
+/* ==========================================
+   実行中のブロックのハイライト設定（破線）
+   ========================================= */
+.blocklyHighlighted > .blocklyPath,
+.blocklyHighlightedConnectionPath {
+    stroke: #ff3333 !important;      /* 目立つ赤色 */
+    stroke-width: 5px !important;    /* 線の太さ */
+    stroke-dasharray: 6, 6 !important; /* 破線の間隔 */
+    fill-opacity: 0.8;
 }
