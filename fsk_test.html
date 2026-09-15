@@ -1,122 +1,387 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FSK デコーダ</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 30px; }
-    button { padding: 15px 30px; font-size: 18px; margin-bottom: 20px; }
-    #output {
-      width: 80%; height: 200px; margin: 0 auto; padding: 10px;
-      border: 2px solid #ccc; font-size: 20px; text-align: left;
-      overflow-y: auto; background: #f9f9f9;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FSKデコーダー</title>
+    <style>
+        :root {
+            --bg: #12181f;
+            --panel: #1a222b;
+            --line: #2a3540;
+            --text: #e6edf3;
+            --sub: #8b98a5;
+            --accent: #4fd1a5;
+            --accent-dim: #2a5d4c;
+            --warn: #e0736b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .wrap {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 28px 18px 60px;
+        }
+
+        h1 {
+            font-size: 19px;
+            font-weight: 600;
+            margin: 0 0 4px;
+            letter-spacing: 0.02em;
+        }
+
+        .spec {
+            color: var(--sub);
+            font-size: 13px;
+            margin: 0 0 24px;
+            line-height: 1.6;
+        }
+
+        .spec code {
+            color: var(--accent);
+            font-family: "SF Mono", Menlo, monospace;
+            font-size: 12px;
+        }
+
+        button#startBtn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 10px;
+            border: 1px solid var(--accent-dim);
+            background: var(--accent);
+            color: #0b1410;
+            cursor: pointer;
+            transition: transform 0.08s ease, opacity 0.15s ease;
+        }
+
+        button#startBtn:active {
+            transform: scale(0.98);
+        }
+
+        button#startBtn.running {
+            background: var(--panel);
+            color: var(--warn);
+            border-color: var(--warn);
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 14px 2px 22px;
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--sub);
+            flex-shrink: 0;
+        }
+
+        .dot.on {
+            background: var(--accent);
+            box-shadow: 0 0 6px var(--accent);
+        }
+
+        .dot.err {
+            background: var(--warn);
+        }
+
+        .meter {
+            height: 3px;
+            background: var(--line);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 0 0 22px;
+        }
+
+        .meter-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            transition: width 0.05s linear;
+        }
+
+        label.field-label {
+            display: block;
+            font-size: 12px;
+            color: var(--sub);
+            margin: 0 0 8px;
+        }
+
+        textarea#output {
+            width: 100%;
+            min-height: 220px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: "SF Mono", Menlo, monospace;
+            font-size: 15px;
+            line-height: 1.6;
+            padding: 14px;
+            resize: vertical;
+        }
+
+        textarea#output:focus {
+            outline: none;
+            border-color: var(--accent-dim);
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .actions button {
+            flex: 1;
+            padding: 10px;
+            font-size: 13px;
+            background: transparent;
+            color: var(--sub);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+    </style>
 </head>
+
 <body>
-  <h2>FSK 文字デコーダ (1200bps)</h2>
-  <button id="startBtn">マイク受信スタート</button>
-  <div id="output"></div>
+    <div class="wrap">
+        <h1>FSKデコーダー</h1>
+        <p class="spec">1200bps / '1' = <code>1200Hz</code> / '0' = <code>2400Hz</code> / 8N1フレーム想定</p>
 
-  <script>
-    // AudioWorklet用の処理（別スレッドで高速に波形を解析するコード）
-    const workletCode = `
-      class FskDecoder extends AudioWorkletProcessor {
-        constructor() {
-          super();
-          this.bitSamples = sampleRate / 1200; // 1ビットあたりのサンプル数
-          this.state = 'IDLE';
-          this.bitIndex = 0;
-          this.currentByte = 0;
-          this.samplesSinceEdge = 0;
-          this.lastSample = 0;
-          this.currentBitTimer = 0;
-          this.periodSamples = 0;
-        }
+        <button id="startBtn">マイク入力開始</button>
 
-        process(inputs, outputs, parameters) {
-          const input = inputs[0];
-          if (!input || !input[0]) return true;
-          const channel = input[0];
+        <div class="status-row">
+            <span class="dot" id="statusDot"></span>
+            <span id="statusText">停止中</span>
+        </div>
+        <div class="meter">
+            <div class="meter-fill" id="meterFill"></div>
+        </div>
 
-          for (let i = 0; i < channel.length; i++) {
-            const sample = channel[i];
+        <label class="field-label" for="output">受信データ</label>
+        <textarea id="output" readonly placeholder="受信したテキストがここに表示されます"></textarea>
 
-            // 波が0をまたいだ（ゼロクロス）間隔を計測
-            if ((this.lastSample <= 0 && sample > 0) || (this.lastSample >= 0 && sample < 0)) {
-              this.periodSamples = this.periodSamples * 0.5 + this.samplesSinceEdge * 0.5; // ノイズ対策の平均化
-              this.samplesSinceEdge = 0;
-            } else {
-              this.samplesSinceEdge++;
-            }
-            this.lastSample = sample;
+        <div class="actions">
+            <button id="clearBtn">クリア</button>
+        </div>
+    </div>
 
-            // 1800Hzを境界にして、1200Hz(1)か2400Hz(0)かを判定
-            const threshold = sampleRate / 1800 / 2;
-            const bitVal = (this.periodSamples < threshold) ? 0 : 1;
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const meterFill = document.getElementById('meterFill');
+        const outputEl = document.getElementById('output');
+        const clearBtn = document.getElementById('clearBtn');
 
-            // シリアル通信(UART)のデータ復元処理
-            if (this.state === 'IDLE') {
-              if (bitVal === 0) { // スタートビット(0)を検出
-                this.state = 'READ';
-                this.currentBitTimer = this.bitSamples * 1.5; // 最初のデータビットの中央まで待つ
-                this.bitIndex = 0;
-                this.currentByte = 0;
-              }
-            } else if (this.state === 'READ') {
-              this.currentBitTimer--;
-              if (this.currentBitTimer <= 0) {
-                if (this.bitIndex < 8) {
-                  // データビットの読み取り
-                  this.currentByte |= (bitVal << this.bitIndex);
-                  this.bitIndex++;
-                  this.currentBitTimer = this.bitSamples;
-                } else {
-                  // ストップビット到達、メインスレッドへ文字コードを送信
-                  this.port.postMessage(this.currentByte);
-                  this.state = 'IDLE';
-                }
-              }
-            }
+        let audioContext = null;
+        let workletNode = null;
+        let mediaStream = null;
+        let running = false;
+
+        clearBtn.addEventListener('click', () => { outputEl.value = ''; });
+
+        // AudioWorkletProcessor のソース。Blob URL 経由で読み込む(別ファイル不要)。
+        const processorSource = `
+class FSKDemodProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bitRate = 1200;
+    this.freqOne = 1200;   // データ '1'
+    this.freqZero = 2400;  // データ '0'
+    this.samplesPerBit = Math.max(4, Math.round(sampleRate / this.bitRate));
+    this.window = new Float32Array(this.samplesPerBit);
+    this.writeIdx = 0;
+    this.filled = 0;
+    this.state = 'IDLE';       // IDLE: スタートビット待ち / RECEIVING: データビット取得中
+    this.lastBitVal = 1;       // アイドル状態(マーク)は '1'
+    this.stepCounter = 0;
+    this.stepSize = Math.max(1, Math.floor(this.samplesPerBit / 8));
+    this.sampleCounter = 0;    // スタートビット検出からの経過サンプル数
+    this.byteBits = [];
+    this.meterCounter = 0;
+  }
+
+  goertzelPower(buf, freq) {
+    const N = buf.length;
+    const k = Math.round(N * freq / sampleRate);
+    const w = (2 * Math.PI / N) * k;
+    const coeff = 2 * Math.cos(w);
+    let q0 = 0, q1 = 0, q2 = 0;
+    for (let i = 0; i < N; i++) {
+      q0 = coeff * q1 - q2 + buf[i];
+      q2 = q1;
+      q1 = q0;
+    }
+    return q1 * q1 + q2 * q2 - q1 * q2 * coeff;
+  }
+
+  orderedWindow() {
+    if (this.filled < this.samplesPerBit) {
+      return this.window.slice(0, this.filled);
+    }
+    const ordered = new Float32Array(this.samplesPerBit);
+    for (let i = 0; i < this.samplesPerBit; i++) {
+      ordered[i] = this.window[(this.writeIdx + i) % this.samplesPerBit];
+    }
+    return ordered;
+  }
+
+  classify(buf) {
+    const p1 = this.goertzelPower(buf, this.freqOne);
+    const p0 = this.goertzelPower(buf, this.freqZero);
+    return { bit: p1 >= p0 ? 1 : 0, level: Math.sqrt(p1 + p0) };
+  }
+
+  process(inputs) {
+    const input = inputs[0];
+    if (!input || !input[0]) return true;
+    const channel = input[0];
+
+    for (let i = 0; i < channel.length; i++) {
+      this.window[this.writeIdx] = channel[i];
+      this.writeIdx = (this.writeIdx + 1) % this.samplesPerBit;
+      if (this.filled < this.samplesPerBit) this.filled++;
+
+      this.stepCounter++;
+      this.sampleCounter++;
+      this.meterCounter++;
+
+      if (this.meterCounter >= 2048) {
+        this.meterCounter = 0;
+        let peak = 0;
+        for (let j = 0; j < channel.length; j++) peak = Math.max(peak, Math.abs(channel[j]));
+        this.port.postMessage({ level: peak });
+      }
+
+      if (this.state === 'IDLE') {
+        if (this.filled >= this.samplesPerBit && this.stepCounter >= this.stepSize) {
+          this.stepCounter = 0;
+          const { bit } = this.classify(this.orderedWindow());
+          if (this.lastBitVal === 1 && bit === 0) {
+            // 立ち下がりエッジ(マーク→スペース)= スタートビット開始とみなす
+            this.state = 'RECEIVING';
+            this.sampleCounter = 0;
+            this.byteBits = [];
           }
-          return true;
+          this.lastBitVal = bit;
+        }
+      } else if (this.state === 'RECEIVING') {
+        const bitIndex = this.byteBits.length; // 0..7
+        const targetSample = Math.round(this.samplesPerBit * (1.5 + bitIndex));
+        if (this.sampleCounter === targetSample) {
+          const { bit } = this.classify(this.orderedWindow());
+          this.byteBits.push(bit);
+          if (this.byteBits.length === 8) {
+            let byteVal = 0;
+            for (let b = 0; b < 8; b++) byteVal |= (this.byteBits[b] << b); // LSBファースト
+            this.port.postMessage({ char: String.fromCharCode(byteVal) });
+            this.state = 'IDLE';
+            this.lastBitVal = 1;
+          }
         }
       }
-      registerProcessor('fsk-decoder', FskDecoder);
-    `;
+    }
+    return true;
+  }
+}
+registerProcessor('fsk-demod-processor', FSKDemodProcessor);
+`;
 
-    document.getElementById('startBtn').addEventListener('click', async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
+        function setStatus(text, mode) {
+            statusText.textContent = text;
+            statusDot.className = 'dot' + (mode === 'on' ? ' on' : mode === 'err' ? ' err' : '');
+        }
 
-        // WorkletのコードをBlobとして読み込む（1ファイルで完結させるための工夫）
-        const blob = new Blob([workletCode], { type: 'application/javascript' });
-        const workletUrl = URL.createObjectURL(blob);
-        
-        await audioContext.audioWorklet.addModule(workletUrl);
-        const fskNode = new AudioWorkletNode(audioContext, 'fsk-decoder');
+        async function start() {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
 
-        // デコーダから文字を受け取って画面に表示
-        fskNode.port.onmessage = (event) => {
-          const charCode = event.data;
-          // アスキーコードの印字可能な文字のみを表示（ノイズによる文字化け対策）
-          if (charCode >= 32 && charCode <= 126) {
-            const char = String.fromCharCode(charCode);
-            document.getElementById('output').innerHTML += char;
-          }
-        };
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === 'suspended') await audioContext.resume();
 
-        source.connect(fskNode);
-        document.getElementById('startBtn').disabled = true;
-        document.getElementById('startBtn').innerText = "受信中...";
+                const blob = new Blob([processorSource], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                await audioContext.audioWorklet.addModule(url);
+                URL.revokeObjectURL(url);
 
-      } catch (err) {
-        alert('エラーが発生しました: ' + err);
-      }
-    });
-  </script>
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                workletNode = new AudioWorkletNode(audioContext, 'fsk-demod-processor');
+
+                workletNode.port.onmessage = (e) => {
+                    const data = e.data;
+                    if (!data) return;
+                    if (data.char !== undefined) {
+                        outputEl.value += data.char;
+                        outputEl.scrollTop = outputEl.scrollHeight;
+                    }
+                    if (data.level !== undefined) {
+                        meterFill.style.width = Math.min(100, data.level * 220) + '%';
+                    }
+                };
+
+                // AudioWorkletNode を動かし続けるため、無音Gain経由でdestinationへ接続
+                const silentGain = audioContext.createGain();
+                silentGain.gain.value = 0;
+                source.connect(workletNode);
+                workletNode.connect(silentGain);
+                silentGain.connect(audioContext.destination);
+
+                running = true;
+                startBtn.textContent = '停止';
+                startBtn.classList.add('running');
+                setStatus('受信中…', 'on');
+            } catch (err) {
+                setStatus('エラー: ' + err.message, 'err');
+            }
+        }
+
+        async function stop() {
+            if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+            if (audioContext) await audioContext.close();
+            workletNode = null;
+            audioContext = null;
+            mediaStream = null;
+            running = false;
+            startBtn.textContent = 'マイク入力開始';
+            startBtn.classList.remove('running');
+            meterFill.style.width = '0%';
+            setStatus('停止中', '');
+        }
+
+        startBtn.addEventListener('click', () => {
+            if (!running) start(); else stop();
+        });
+    </script>
 </body>
+
 </html>
