@@ -3,104 +3,155 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FSK信号 受信テスト</title>
+  <title>FSK デコーダー</title>
   <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 50px; }
-    button { padding: 15px 30px; font-size: 18px; margin-bottom: 20px; }
-    .status { font-size: 24px; font-weight: bold; margin: 20px 0; }
-    .bar-container { display: flex; justify-content: center; gap: 20px; margin-top: 20px; }
-    .bar-wrap { display: flex; flex-direction: column; align-items: center; }
-    .bar { width: 50px; background-color: #ddd; height: 200px; position: relative; }
-    .bar-fill { position: absolute; bottom: 0; width: 100%; background-color: #4CAF50; transition: height 0.1s; }
+    body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f9f9f9; }
+    button { padding: 15px 30px; font-size: 18px; margin-bottom: 20px; cursor: pointer; }
+    #output {
+      width: 90%; max-width: 600px; height: 300px; margin: 0 auto;
+      background: #222; color: #0f0; font-family: monospace;
+      padding: 15px; font-size: 20px; text-align: left;
+      border-radius: 8px; overflow-y: auto; white-space: pre-wrap;
+      word-wrap: break-word; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    }
+    .status { font-weight: bold; margin-bottom: 15px; color: #555; }
   </style>
 </head>
 <body>
 
-  <h2>FSK (1200Hz / 2400Hz) モニター</h2>
-  
-  <button id="startBtn">マイク受信スタート</button>
-  <div id="statusText" class="status">待機中...</div>
-
-  <div class="bar-container">
-    <div class="bar-wrap">
-      <div>1200Hz (Mark: 1)</div>
-      <div class="bar"><div id="bar1200" class="bar-fill" style="height: 0%;"></div></div>
-    </div>
-    <div class="bar-wrap">
-      <div>2400Hz (Space: 0)</div>
-      <div class="bar"><div id="bar2400" class="bar-fill" style="height: 0%;"></div></div>
-    </div>
-  </div>
+  <h2>マイコン FSK通信 受信画面</h2>
+  <button id="startBtn">受信スタート</button>
+  <div id="statusText" class="status">マイクの許可を待っています...</div>
+  <div id="output"></div>
 
   <script>
+    // --- AudioWorklet (音声解析エンジン) のソースコード ---
+    // 独立したスレッドで動くため、文字列(Blob)として定義して読み込ませます
+    const workletCode = `
+      class FSKDemodulator extends AudioWorkletProcessor {
+        constructor() {
+          super();
+          // 通信仕様の設定
+          const baudRate = 1200;
+          this.spb = sampleRate / baudRate; // 1ビットあたりのサンプル数 (48kHzなら40)
+          
+          // FM検波(遅延検波)用の設定： 1800Hz(1200と2400の中間)の1/4波長分遅延させる
+          this.delay = Math.round(sampleRate / (4 * 1800));
+          this.delayLine = new Float32Array(this.delay);
+          this.delayIdx = 0;
+
+          // ローパスフィルタ(移動平均)用の設定
+          this.maLen = Math.round(this.spb);
+          this.maBuffer = new Float32Array(this.maLen);
+          this.maIdx = 0;
+          this.maSum = 0;
+
+          // UART解析用の状態管理
+          this.state = 'IDLE';
+          this.samplesToNextBit = 0;
+          this.bitCount = 0;
+          this.currentByte = 0;
+          this.lastBaseband = 1; // Mark(1) = 待機状態
+        }
+
+        process(inputs, outputs, parameters) {
+          const input = inputs[0][0]; // マイク入力のモノラル音声データ
+          if (!input) return true;
+
+          for (let i = 0; i < input.length; i++) {
+            let x = input[i];
+
+            // 1. 遅延検波 (現在の波と、少し前の波を掛け合わせる)
+            let delayedX = this.delayLine[this.delayIdx];
+            this.delayLine[this.delayIdx] = x;
+            this.delayIdx = (this.delayIdx + 1) % this.delay;
+            let mult = x * delayedX;
+
+            // 2. ローパスフィルタ (高周波ノイズを取り除き、0/1のベースバンド信号にする)
+            this.maSum -= this.maBuffer[this.maIdx];
+            this.maBuffer[this.maIdx] = mult;
+            this.maSum += mult;
+            this.maIdx = (this.maIdx + 1) % this.maLen;
+
+            // プラスなら1200Hz(1:Mark)、マイナスなら2400Hz(0:Space)
+            let baseband = this.maSum > 0 ? 1 : 0;
+
+            // 3. UART (調歩同期式) のデコード処理
+            if (this.state === 'IDLE') {
+              // 待機中(1)からスタートビット(0)への立ち下がりを検出
+              if (this.lastBaseband === 1 && baseband === 0) {
+                this.state = 'DATA';
+                // スタートビットの中心 + 次のデータビットの中心まで待つ (1.5ビット分)
+                this.samplesToNextBit = this.spb * 1.5;
+                this.bitCount = 0;
+                this.currentByte = 0;
+              }
+            } else if (this.state === 'DATA') {
+              this.samplesToNextBit--;
+              if (this.samplesToNextBit <= 0) {
+                if (this.bitCount < 8) {
+                  // データビットをLSB(下の桁)から順に組み立てる
+                  this.currentByte |= (baseband << this.bitCount);
+                  this.bitCount++;
+                  this.samplesToNextBit += this.spb; // 次のビットまで待つ
+                } else {
+                  // 8ビット読み終わったら、ストップビット(1のはず)を確認して送信
+                  if (baseband === 1) {
+                    this.port.postMessage(this.currentByte);
+                  }
+                  this.state = 'IDLE';
+                }
+              }
+            }
+            this.lastBaseband = baseband;
+          }
+          return true; // 処理継続
+        }
+      }
+      registerProcessor('fsk-demodulator', FSKDemodulator);
+    `;
+
+    // --- メイン画面側の処理 ---
     let audioContext;
-    let analyser;
-    let animationId;
 
     document.getElementById('startBtn').addEventListener('click', async () => {
+      const statusText = document.getElementById('statusText');
       try {
-        // 1. マイクの使用許可をリクエスト
+        // マイクアクセス要求
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        
-        // 2. Web Audio APIのセットアップ
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
         
-        // 周波数解析器(AnalyserNode)の作成
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048; // 分解能の設定
-        source.connect(analyser);
+        // WorkletのソースコードをBlob(仮装ファイル)化して読み込む
+        const blob = new Blob([workletCode], { type: 'application/javascript' });
+        const workletUrl = URL.createObjectURL(blob);
+        await audioContext.audioWorklet.addModule(workletUrl);
+
+        // マイク入力とデコーダーを接続
+        const source = audioContext.createMediaStreamSource(stream);
+        const demodulatorNode = new AudioWorkletNode(audioContext, 'fsk-demodulator');
+        source.connect(demodulatorNode);
+
+        // デコーダーから文字データが届いた時の処理
+        const outputDiv = document.getElementById('output');
+        demodulatorNode.port.onmessage = (event) => {
+          const charCode = event.data;
+          // 表示可能なASCII文字(32〜126)と改行のみを画面に追加
+          if ((charCode >= 32 && charCode <= 126) || charCode === 10 || charCode === 13) {
+            outputDiv.textContent += String.fromCharCode(charCode);
+            outputDiv.scrollTop = outputDiv.scrollHeight; // 自動スクロール
+          }
+        };
 
         document.getElementById('startBtn').disabled = true;
-        document.getElementById('statusText').innerText = "マイク受信中...";
-        
-        // 3. 解析ループの開始
-        analyzePitch();
+        statusText.innerText = "受信中... マイコンからデータを送信してください";
+        statusText.style.color = "blue";
 
       } catch (err) {
-        alert('マイクへのアクセスが拒否されたか、エラーが発生しました: ' + err);
+        statusText.innerText = "エラー: マイクにアクセスできませんでした";
+        statusText.style.color = "red";
+        console.error(err);
       }
     });
-
-    function analyzePitch() {
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      
-      // 現在の周波数ごとの音の強さを取得
-      analyser.getByteFrequencyData(dataArray);
-
-      // サンプリングレート(通常44100Hzか48000Hz)とFFTサイズから、1インデックスあたりの周波数を計算
-      const sampleRate = audioContext.sampleRate;
-      const hzPerBin = (sampleRate / 2) / bufferLength;
-
-      // 1200Hz と 2400Hz が格納されている配列のインデックスを計算
-      const index1200 = Math.round(1200 / hzPerBin);
-      const index2400 = Math.round(2400 / hzPerBin);
-
-      // それぞれの周波数の音の強さを取得 (0〜255)
-      const val1200 = dataArray[index1200];
-      const val2400 = dataArray[index2400];
-
-      // 画面のバーの高さを更新 (%)
-      document.getElementById('bar1200').style.height = (val1200 / 255 * 100) + '%';
-      document.getElementById('bar2400').style.height = (val2400 / 255 * 100) + '%';
-
-      // どちらの音が強いか判定
-      const statusElement = document.getElementById('statusText');
-      if (val1200 > 100 && val1200 > val2400) {
-        statusElement.innerText = "検出: [1] (1200Hz)";
-        statusElement.style.color = "blue";
-      } else if (val2400 > 100 && val2400 > val1200) {
-        statusElement.innerText = "検出: [0] (2400Hz)";
-        statusElement.style.color = "red";
-      } else {
-        statusElement.innerText = "信号なし";
-        statusElement.style.color = "black";
-      }
-
-      // 次のフレームで再度実行
-      animationId = requestAnimationFrame(analyzePitch);
-    }
   </script>
 </body>
 </html>
