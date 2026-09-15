@@ -3,153 +3,118 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FSK デコーダー</title>
+  <title>FSK デコーダ</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f9f9f9; }
-    button { padding: 15px 30px; font-size: 18px; margin-bottom: 20px; cursor: pointer; }
+    body { font-family: sans-serif; text-align: center; margin-top: 30px; }
+    button { padding: 15px 30px; font-size: 18px; margin-bottom: 20px; }
     #output {
-      width: 90%; max-width: 600px; height: 300px; margin: 0 auto;
-      background: #222; color: #0f0; font-family: monospace;
-      padding: 15px; font-size: 20px; text-align: left;
-      border-radius: 8px; overflow-y: auto; white-space: pre-wrap;
-      word-wrap: break-word; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+      width: 80%; height: 200px; margin: 0 auto; padding: 10px;
+      border: 2px solid #ccc; font-size: 20px; text-align: left;
+      overflow-y: auto; background: #f9f9f9;
     }
-    .status { font-weight: bold; margin-bottom: 15px; color: #555; }
   </style>
 </head>
 <body>
-
-  <h2>マイコン FSK通信 受信画面</h2>
-  <button id="startBtn">受信スタート</button>
-  <div id="statusText" class="status">マイクの許可を待っています...</div>
+  <h2>FSK 文字デコーダ (1200bps)</h2>
+  <button id="startBtn">マイク受信スタート</button>
   <div id="output"></div>
 
   <script>
-    // --- AudioWorklet (音声解析エンジン) のソースコード ---
-    // 独立したスレッドで動くため、文字列(Blob)として定義して読み込ませます
+    // AudioWorklet用の処理（別スレッドで高速に波形を解析するコード）
     const workletCode = `
-      class FSKDemodulator extends AudioWorkletProcessor {
+      class FskDecoder extends AudioWorkletProcessor {
         constructor() {
           super();
-          // 通信仕様の設定
-          const baudRate = 1200;
-          this.spb = sampleRate / baudRate; // 1ビットあたりのサンプル数 (48kHzなら40)
-          
-          // FM検波(遅延検波)用の設定： 1800Hz(1200と2400の中間)の1/4波長分遅延させる
-          this.delay = Math.round(sampleRate / (4 * 1800));
-          this.delayLine = new Float32Array(this.delay);
-          this.delayIdx = 0;
-
-          // ローパスフィルタ(移動平均)用の設定
-          this.maLen = Math.round(this.spb);
-          this.maBuffer = new Float32Array(this.maLen);
-          this.maIdx = 0;
-          this.maSum = 0;
-
-          // UART解析用の状態管理
+          this.bitSamples = sampleRate / 1200; // 1ビットあたりのサンプル数
           this.state = 'IDLE';
-          this.samplesToNextBit = 0;
-          this.bitCount = 0;
+          this.bitIndex = 0;
           this.currentByte = 0;
-          this.lastBaseband = 1; // Mark(1) = 待機状態
+          this.samplesSinceEdge = 0;
+          this.lastSample = 0;
+          this.currentBitTimer = 0;
+          this.periodSamples = 0;
         }
 
         process(inputs, outputs, parameters) {
-          const input = inputs[0][0]; // マイク入力のモノラル音声データ
-          if (!input) return true;
+          const input = inputs[0];
+          if (!input || !input[0]) return true;
+          const channel = input[0];
 
-          for (let i = 0; i < input.length; i++) {
-            let x = input[i];
+          for (let i = 0; i < channel.length; i++) {
+            const sample = channel[i];
 
-            // 1. 遅延検波 (現在の波と、少し前の波を掛け合わせる)
-            let delayedX = this.delayLine[this.delayIdx];
-            this.delayLine[this.delayIdx] = x;
-            this.delayIdx = (this.delayIdx + 1) % this.delay;
-            let mult = x * delayedX;
+            // 波が0をまたいだ（ゼロクロス）間隔を計測
+            if ((this.lastSample <= 0 && sample > 0) || (this.lastSample >= 0 && sample < 0)) {
+              this.periodSamples = this.periodSamples * 0.5 + this.samplesSinceEdge * 0.5; // ノイズ対策の平均化
+              this.samplesSinceEdge = 0;
+            } else {
+              this.samplesSinceEdge++;
+            }
+            this.lastSample = sample;
 
-            // 2. ローパスフィルタ (高周波ノイズを取り除き、0/1のベースバンド信号にする)
-            this.maSum -= this.maBuffer[this.maIdx];
-            this.maBuffer[this.maIdx] = mult;
-            this.maSum += mult;
-            this.maIdx = (this.maIdx + 1) % this.maLen;
+            // 1800Hzを境界にして、1200Hz(1)か2400Hz(0)かを判定
+            const threshold = sampleRate / 1800 / 2;
+            const bitVal = (this.periodSamples < threshold) ? 0 : 1;
 
-            // プラスなら1200Hz(1:Mark)、マイナスなら2400Hz(0:Space)
-            let baseband = this.maSum > 0 ? 1 : 0;
-
-            // 3. UART (調歩同期式) のデコード処理
+            // シリアル通信(UART)のデータ復元処理
             if (this.state === 'IDLE') {
-              // 待機中(1)からスタートビット(0)への立ち下がりを検出
-              if (this.lastBaseband === 1 && baseband === 0) {
-                this.state = 'DATA';
-                // スタートビットの中心 + 次のデータビットの中心まで待つ (1.5ビット分)
-                this.samplesToNextBit = this.spb * 1.5;
-                this.bitCount = 0;
+              if (bitVal === 0) { // スタートビット(0)を検出
+                this.state = 'READ';
+                this.currentBitTimer = this.bitSamples * 1.5; // 最初のデータビットの中央まで待つ
+                this.bitIndex = 0;
                 this.currentByte = 0;
               }
-            } else if (this.state === 'DATA') {
-              this.samplesToNextBit--;
-              if (this.samplesToNextBit <= 0) {
-                if (this.bitCount < 8) {
-                  // データビットをLSB(下の桁)から順に組み立てる
-                  this.currentByte |= (baseband << this.bitCount);
-                  this.bitCount++;
-                  this.samplesToNextBit += this.spb; // 次のビットまで待つ
+            } else if (this.state === 'READ') {
+              this.currentBitTimer--;
+              if (this.currentBitTimer <= 0) {
+                if (this.bitIndex < 8) {
+                  // データビットの読み取り
+                  this.currentByte |= (bitVal << this.bitIndex);
+                  this.bitIndex++;
+                  this.currentBitTimer = this.bitSamples;
                 } else {
-                  // 8ビット読み終わったら、ストップビット(1のはず)を確認して送信
-                  if (baseband === 1) {
-                    this.port.postMessage(this.currentByte);
-                  }
+                  // ストップビット到達、メインスレッドへ文字コードを送信
+                  this.port.postMessage(this.currentByte);
                   this.state = 'IDLE';
                 }
               }
             }
-            this.lastBaseband = baseband;
           }
-          return true; // 処理継続
+          return true;
         }
       }
-      registerProcessor('fsk-demodulator', FSKDemodulator);
+      registerProcessor('fsk-decoder', FskDecoder);
     `;
 
-    // --- メイン画面側の処理 ---
-    let audioContext;
-
     document.getElementById('startBtn').addEventListener('click', async () => {
-      const statusText = document.getElementById('statusText');
       try {
-        // マイクアクセス要求
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // WorkletのソースコードをBlob(仮装ファイル)化して読み込む
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+
+        // WorkletのコードをBlobとして読み込む（1ファイルで完結させるための工夫）
         const blob = new Blob([workletCode], { type: 'application/javascript' });
         const workletUrl = URL.createObjectURL(blob);
+        
         await audioContext.audioWorklet.addModule(workletUrl);
+        const fskNode = new AudioWorkletNode(audioContext, 'fsk-decoder');
 
-        // マイク入力とデコーダーを接続
-        const source = audioContext.createMediaStreamSource(stream);
-        const demodulatorNode = new AudioWorkletNode(audioContext, 'fsk-demodulator');
-        source.connect(demodulatorNode);
-
-        // デコーダーから文字データが届いた時の処理
-        const outputDiv = document.getElementById('output');
-        demodulatorNode.port.onmessage = (event) => {
+        // デコーダから文字を受け取って画面に表示
+        fskNode.port.onmessage = (event) => {
           const charCode = event.data;
-          // 表示可能なASCII文字(32〜126)と改行のみを画面に追加
-          if ((charCode >= 32 && charCode <= 126) || charCode === 10 || charCode === 13) {
-            outputDiv.textContent += String.fromCharCode(charCode);
-            outputDiv.scrollTop = outputDiv.scrollHeight; // 自動スクロール
+          // アスキーコードの印字可能な文字のみを表示（ノイズによる文字化け対策）
+          if (charCode >= 32 && charCode <= 126) {
+            const char = String.fromCharCode(charCode);
+            document.getElementById('output').innerHTML += char;
           }
         };
 
+        source.connect(fskNode);
         document.getElementById('startBtn').disabled = true;
-        statusText.innerText = "受信中... マイコンからデータを送信してください";
-        statusText.style.color = "blue";
+        document.getElementById('startBtn').innerText = "受信中...";
 
       } catch (err) {
-        statusText.innerText = "エラー: マイクにアクセスできませんでした";
-        statusText.style.color = "red";
-        console.error(err);
+        alert('エラーが発生しました: ' + err);
       }
     });
   </script>
