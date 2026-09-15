@@ -1,240 +1,106 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FSK 受信テストツール</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            padding: 20px;
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #f5f6fa;
-        }
-        h2 {
-            color: #2f3640;
-        }
-        .controls {
-            margin-bottom: 20px;
-            display: flex;
-            gap: 10px;
-        }
-        button {
-            font-size: 16px;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            color: white;
-        }
-        #start-btn {
-            background-color: #4cd137;
-        }
-        #start-btn:disabled {
-            background-color: #a4b0be;
-            cursor: not-allowed;
-        }
-        #stop-btn {
-            background-color: #e84118;
-        }
-        #stop-btn:disabled {
-            background-color: #a4b0be;
-            cursor: not-allowed;
-        }
-        #status-text {
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #7f8fa6;
-        }
-        #output {
-            width: 100%;
-            height: 300px;
-            font-size: 16px;
-            font-family: 'Courier New', Courier, monospace;
-            padding: 10px;
-            box-sizing: border-box;
-            border: 2px solid #dcdde1;
-            border-radius: 6px;
-            resize: vertical;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FSK信号 受信テスト</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+    button { padding: 15px 30px; font-size: 18px; margin-bottom: 20px; }
+    .status { font-size: 24px; font-weight: bold; margin: 20px 0; }
+    .bar-container { display: flex; justify-content: center; gap: 20px; margin-top: 20px; }
+    .bar-wrap { display: flex; flex-direction: column; align-items: center; }
+    .bar { width: 50px; background-color: #ddd; height: 200px; position: relative; }
+    .bar-fill { position: absolute; bottom: 0; width: 100%; background-color: #4CAF50; transition: height 0.1s; }
+  </style>
 </head>
 <body>
 
-    <h2>🎤 FSK 受信テストツール1200bps</h2>
-    
-    <div class="controls">
-        <button id="start-btn">受信開始</button>
-        <button id="stop-btn" disabled>受信終了</button>
+  <h2>FSK (1200Hz / 2400Hz) モニター</h2>
+  
+  <button id="startBtn">マイク受信スタート</button>
+  <div id="statusText" class="status">待機中...</div>
+
+  <div class="bar-container">
+    <div class="bar-wrap">
+      <div>1200Hz (Mark: 1)</div>
+      <div class="bar"><div id="bar1200" class="bar-fill" style="height: 0%;"></div></div>
     </div>
-    
-    <div id="status-text">状態: 停止中</div>
-    
-    <textarea id="output" readonly placeholder="受信したデータがここに表示されます..."></textarea>
+    <div class="bar-wrap">
+      <div>2400Hz (Space: 0)</div>
+      <div class="bar"><div id="bar2400" class="bar-fill" style="height: 0%;"></div></div>
+    </div>
+  </div>
 
-    <script>
-        let audioContext;
-        let analyser;
-        let microphone;
-        let isListening = false;
-        let intervalId;
+  <script>
+    let audioContext;
+    let analyser;
+    let animationId;
 
-        // FSK通信の設定（マイコン側と合わせる）
-        const FREQ_SPACE = 1200; // ビット0
-        const FREQ_MARK  = 2400; // ビット1
-        const BAUD_RATE  = 1200;   // 通信速度 (bps)
-        const BIT_TIME_MS = 1000 / BAUD_RATE; // 1ビットあたりのミリ秒 (20ms)
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      try {
+        // 1. マイクの使用許可をリクエスト
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        
+        // 2. Web Audio APIのセットアップ
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        
+        // 周波数解析器(AnalyserNode)の作成
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048; // 分解能の設定
+        source.connect(analyser);
 
-        const startBtn = document.getElementById('start-btn');
-        const stopBtn = document.getElementById('stop-btn');
-        const statusText = document.getElementById('status-text');
-        const output = document.getElementById('output');
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('statusText').innerText = "マイク受信中...";
+        
+        // 3. 解析ループの開始
+        analyzePitch();
 
-        // 受信開始ボタンの処理
-        startBtn.addEventListener('click', async () => {
-            try {
-                // マイクへのアクセス要求
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                microphone = audioContext.createMediaStreamSource(stream);
-                analyser = audioContext.createAnalyser();
-                
-                analyser.fftSize = 2048;
-                analyser.smoothingTimeConstant = 0.2;
-                
-                microphone.connect(analyser);
-                isListening = true;
-                
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-                statusText.textContent = "状態: 受信中... (マイク監視中 🎙️)";
-                statusText.style.color = "#4cd137";
-                
-                output.value += "--- 監視を開始しました ---\n";
-                startFSKDecoder();
-                
-            } catch (err) {
-                alert("マイクへのアクセスが拒否されたか、エラーが発生しました。\nブラウザのマイク許可設定を確認してください。");
-                console.error(err);
-            }
-        });
+      } catch (err) {
+        alert('マイクへのアクセスが拒否されたか、エラーが発生しました: ' + err);
+      }
+    });
 
-        // 受信終了ボタンの処理
-        stopBtn.addEventListener('click', () => {
-            isListening = false;
-            clearInterval(intervalId);
-            
-            if (audioContext) {
-                audioContext.close(); // オーディオ処理を完全に停止
-            }
-            
-            startBtn.disabled = false;
-            stopBtn.disabled = true;
-            statusText.textContent = "状態: 停止中";
-            statusText.style.color = "#7f8fa6";
-            
-            output.value += "--- 監視を終了しました ---\n";
-            output.scrollTop = output.scrollHeight;
-        });
+    function analyzePitch() {
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      // 現在の周波数ごとの音の強さを取得
+      analyser.getByteFrequencyData(dataArray);
 
-        // テキストエリアにデータを出力する関数
-        function appendData(data) {
-            const time = new Date().toLocaleTimeString();
-            // 10進数と、確認しやすいように16進数を併記
-            const hex = "0x" + data.toString(16).padStart(2, '0').toUpperCase();
-            output.value += `[${time}] 受信: ${data} (${hex})\n`;
-            output.scrollTop = output.scrollHeight; // 自動スクロール
-        }
+      // サンプリングレート(通常44100Hzか48000Hz)とFFTサイズから、1インデックスあたりの周波数を計算
+      const sampleRate = audioContext.sampleRate;
+      const hzPerBin = (sampleRate / 2) / bufferLength;
 
-        // FSKデコード処理本体
-        function startFSKDecoder() {
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            const sampleRate = audioContext.sampleRate;
-            
-            // 目当ての周波数が入っている配列のインデックスを計算
-            const spaceBin = Math.round(FREQ_SPACE * analyser.fftSize / sampleRate);
-            const markBin  = Math.round(FREQ_MARK * analyser.fftSize / sampleRate);
-            
-            let state = 'IDLE';
-            let bitBuffer = 0;
-            let bitCount = 0;
-            let lastBitTime = 0;
-            
-            // 3ミリ秒ごとに解析
-            intervalId = setInterval(() => {
-                if (!isListening) return;
-                
-                analyser.getByteFrequencyData(dataArray);
-                
-                // 周辺のビンの音量も見てピークを判定（多少の周波数ズレを許容）
-                const spaceVol = Math.max(dataArray[spaceBin-1] || 0, dataArray[spaceBin], dataArray[spaceBin+1] || 0);
-                const markVol  = Math.max(dataArray[markBin-1] || 0, dataArray[markBin], dataArray[markBin+1] || 0);
-                
-                let currentSignal = -1; // -1:無音, 0:SPACE(1200Hz), 1:MARK(2400Hz)
-                const THRESHOLD = 80;   // 雑音を無視するしきい値(0~255)
-                
-                if (spaceVol > THRESHOLD && spaceVol > markVol + 20) {
-                    currentSignal = 0;
-                } else if (markVol > THRESHOLD && markVol > spaceVol + 20) {
-                    currentSignal = 1;
-                }
-                
-                const now = performance.now();
-                
-                switch (state) {
-                    case 'IDLE':
-                        // スタートビット (0) が来たら
-                        if (currentSignal === 0) {
-                            state = 'START_BIT';
-                            lastBitTime = now;
-                        }
-                        break;
-                        
-                    case 'START_BIT':
-                        // 0.5ビット時間経過時にまだ0なら、本物のスタートビットとみなす
-                        if (now - lastBitTime >= BIT_TIME_MS / 2) {
-                            if (currentSignal === 0) {
-                                state = 'DATA_BITS';
-                                bitCount = 0;
-                                bitBuffer = 0;
-                                lastBitTime = now + (BIT_TIME_MS / 2);
-                            } else {
-                                state = 'IDLE'; // ノイズだった
-                            }
-                        }
-                        break;
-                        
-                    case 'DATA_BITS':
-                        // 1ビット時間(20ms)ごとにサンプリング
-                        if (now - lastBitTime >= BIT_TIME_MS) {
-                            lastBitTime += BIT_TIME_MS;
-                            
-                            // MARK(1)ならフラグを立てる (LSBファースト)
-                            if (currentSignal === 1) {
-                                bitBuffer |= (1 << bitCount);
-                            }
-                            
-                            bitCount++;
-                            if (bitCount >= 8) {
-                                state = 'STOP_BIT';
-                            }
-                        }
-                        break;
-                        
-                    case 'STOP_BIT':
-                        // ストップビットのタイミングで1バイトの受信完了処理
-                        if (now - lastBitTime >= BIT_TIME_MS) {
-                            appendData(bitBuffer);
-                            state = 'IDLE';
-                        }
-                        break;
-                }
-            }, 3);
-        }
-    </script>
+      // 1200Hz と 2400Hz が格納されている配列のインデックスを計算
+      const index1200 = Math.round(1200 / hzPerBin);
+      const index2400 = Math.round(2400 / hzPerBin);
+
+      // それぞれの周波数の音の強さを取得 (0〜255)
+      const val1200 = dataArray[index1200];
+      const val2400 = dataArray[index2400];
+
+      // 画面のバーの高さを更新 (%)
+      document.getElementById('bar1200').style.height = (val1200 / 255 * 100) + '%';
+      document.getElementById('bar2400').style.height = (val2400 / 255 * 100) + '%';
+
+      // どちらの音が強いか判定
+      const statusElement = document.getElementById('statusText');
+      if (val1200 > 100 && val1200 > val2400) {
+        statusElement.innerText = "検出: [1] (1200Hz)";
+        statusElement.style.color = "blue";
+      } else if (val2400 > 100 && val2400 > val1200) {
+        statusElement.innerText = "検出: [0] (2400Hz)";
+        statusElement.style.color = "red";
+      } else {
+        statusElement.innerText = "信号なし";
+        statusElement.style.color = "black";
+      }
+
+      // 次のフレームで再度実行
+      animationId = requestAnimationFrame(analyzePitch);
+    }
+  </script>
 </body>
 </html>
