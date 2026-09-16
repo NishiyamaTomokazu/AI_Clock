@@ -51,7 +51,7 @@
 </head>
 <body>
 
-    <h1>FSK データ受信 修正1</h1>
+    <h1>FSK データ受信 修2</h1>
     <p>仕様: 300bps / '0'(Space) = 1200Hz / '1'(Mark) = 2400Hz</p>
 
     <div class="controls">
@@ -103,76 +103,91 @@
                 // ScriptProcessorNodeの作成 (バッファサイズ2048)
                 scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
 
-                scriptProcessor.onaudioprocess = function(audioProcessingEvent) {
-                    const inputBuffer = audioProcessingEvent.inputBuffer;
-                    const inputData = inputBuffer.getChannelData(0);
+scriptProcessor.onaudioprocess = function(audioProcessingEvent) {
+    const inputBuffer = audioProcessingEvent.inputBuffer;
+    const inputData = inputBuffer.getChannelData(0);
 
-                    for (let i = 0; i < inputBuffer.length; i++) {
-                        const sample = inputData[i];
-                        sampleCount++;
+    // 1. 今回のバッファの音量（RMS：実効値）を計算
+    let sumSquares = 0;
+    for (let i = 0; i < inputBuffer.length; i++) {
+        sumSquares += inputData[i] * inputData[i];
+    }
+    const rms = Math.sqrt(sumSquares / inputBuffer.length);
 
-                        // 簡易的なゼロクロス検出による周波数推定
-                        if ((sample > 0 && lastCrossing <= 0) || (sample < 0 && lastCrossing >= 0)) {
-                            const distance = sampleCount;
-                            sampleCount = 0;
-                            
-                            // ゼロクロスの間隔（半周期）から周波数を概算
-                            const freq = sampleRate / (distance * 2);
-                            
-                            // 1200Hzと2400Hzのどちらに近いか判定 (閾値を1800Hzとする)
-                            currentBitValue = (freq > 1800) ? 1 : 0;
-                        }
-                        lastCrossing = sample;
+    // 【重要】音量のしきい値（環境に合わせて調整してください）
+    // 0.01 ～ 0.05 程度が目安です。
+    const VOLUME_THRESHOLD = 0.02; 
 
-                        // UARTの調歩同期デコード処理 (8N1: 8データビット, パリティなし, 1ストップビット)
-                        samplesSinceBitCenter++;
+    // 2. 音量がしきい値以下の場合は「無音状態」として処理をリセット
+    if (rms < VOLUME_THRESHOLD) {
+        state = 'IDLE';
+        currentBitValue = 1; // FSKの待機状態(Mark=1)を維持
+        return; // 以下のデコード処理を行わずスキップする
+    }
 
-                        if (state === 'IDLE') {
-                            // スタートビット(0)の検出
-                            if (currentBitValue === 0) {
-                                state = 'START';
-                                samplesSinceBitCenter = 0;
-                            }
-                        } else if (state === 'START') {
-                            // スタートビットの中央で再確認
-                            if (samplesSinceBitCenter >= samplesPerBit / 2) {
-                                if (currentBitValue === 0) {
-                                    state = 'DATA';
-                                    bitIndex = 0;
-                                    currentByte = 0;
-                                    samplesSinceBitCenter = 0;
-                                } else {
-                                    state = 'IDLE'; // ノイズとみなす
-                                }
-                            }
-                        } else if (state === 'DATA') {
-                            // 各データビットの中央でサンプリング
-                            if (samplesSinceBitCenter >= samplesPerBit) {
-                                if (currentBitValue === 1) {
-                                    currentByte |= (1 << bitIndex);
-                                }
-                                bitIndex++;
-                                samplesSinceBitCenter = 0;
+    // 3. 音量が十分にある場合のみデコード処理を実行
+    for (let i = 0; i < inputBuffer.length; i++) {
+        const sample = inputData[i];
+        sampleCount++;
 
-                                if (bitIndex >= 8) {
-                                    state = 'STOP';
-                                }
-                            }
-                        } else if (state === 'STOP') {
-                            // ストップビット(1)の中央でサンプリング
-                            if (samplesSinceBitCenter >= samplesPerBit) {
-                                if (currentBitValue === 1) {
-                                    // 文字として出力に追加
-                                    const char = String.fromCharCode(currentByte);
-                                    output.value += char;
-                                    // 最新のテキストが見えるようにスクロール
-                                    output.scrollTop = output.scrollHeight;
-                                }
-                                state = 'IDLE';
-                            }
-                        }
+        // ゼロクロス検出（ヒステリシス付き：微小な波のブレを無視）
+        const HYS = 0.005; 
+        if ((sample > HYS && lastCrossing <= 0) || (sample < -HYS && lastCrossing >= 0)) {
+            const distance = sampleCount;
+            sampleCount = 0;
+            
+            const freq = sampleRate / (distance * 2);
+            currentBitValue = (freq > 1800) ? 1 : 0;
+            
+            lastCrossing = (sample > 0) ? 1 : -1;
+        }
+
+        // UARTの調歩同期デコード処理
+        samplesSinceBitCenter++;
+
+        if (state === 'IDLE') {
+            if (currentBitValue === 0) {
+                state = 'START';
+                samplesSinceBitCenter = 0;
+            }
+        } else if (state === 'START') {
+            if (samplesSinceBitCenter >= samplesPerBit / 2) {
+                if (currentBitValue === 0) {
+                    state = 'DATA';
+                    bitIndex = 0;
+                    currentByte = 0;
+                    samplesSinceBitCenter = 0;
+                } else {
+                    state = 'IDLE';
+                }
+            }
+        } else if (state === 'DATA') {
+            if (samplesSinceBitCenter >= samplesPerBit) {
+                if (currentBitValue === 1) {
+                    currentByte |= (1 << bitIndex);
+                }
+                bitIndex++;
+                samplesSinceBitCenter = 0;
+
+                if (bitIndex >= 8) {
+                    state = 'STOP';
+                }
+            }
+        } else if (state === 'STOP') {
+            if (samplesSinceBitCenter >= samplesPerBit) {
+                if (currentBitValue === 1) {
+                    // 制御文字(0x00~0x1F)や非ASCII文字を弾くフィルター
+                    if (currentByte >= 32 && currentByte <= 126) {
+                        const char = String.fromCharCode(currentByte);
+                        output.value += char;
+                        output.scrollTop = output.scrollHeight;
                     }
-                };
+                }
+                state = 'IDLE';
+            }
+        }
+    }
+};
 
                 // ノードの接続
                 //source.connect(scriptProcessor);
