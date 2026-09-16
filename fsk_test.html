@@ -169,7 +169,7 @@
 <body>
     <div class="wrap">
         <h1>FSKデコーダー</h1>
-        <p class="spec">1200bps / '1' = <code>1200Hz</code> / '0' = <code>2400Hz</code> / 8N1フレーム想定</p>
+        <p class="spec">300bps / '1' = <code>1200Hz</code> / '0' = <code>2400Hz</code> / 8N1フレーム想定</p>
 
         <button id="startBtn">マイク入力開始</button>
 
@@ -209,7 +209,7 @@
 class FSKDemodProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.bitRate = 1200;
+    this.bitRate = 300;
     this.freqOne = 1200;   // データ '1'
     this.freqZero = 2400;  // データ '0'
     this.samplesPerBit = Math.max(4, Math.round(sampleRate / this.bitRate));
