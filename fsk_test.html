@@ -51,7 +51,7 @@
 </head>
 <body>
 
-    <h1>FSK データ受信</h1>
+    <h1>FSK データ受信 修正1</h1>
     <p>仕様: 300bps / '0'(Space) = 1200Hz / '1'(Mark) = 2400Hz</p>
 
     <div class="controls">
@@ -175,8 +175,18 @@
                 };
 
                 // ノードの接続
-                source.connect(scriptProcessor);
-                scriptProcessor.connect(audioContext.destination);
+                //source.connect(scriptProcessor);
+                //scriptProcessor.connect(audioContext.destination);
+
+                // 【変更後】バンドパスフィルターを追加
+                const filter = audioContext.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 1800; // 1200Hzと2400Hzの中間を中心に設定
+                filter.Q.value = 1.0;          // 通す周波数の幅
+
+source.connect(filter);
+filter.connect(scriptProcessor);
+scriptProcessor.connect(audioContext.destination);
 
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
