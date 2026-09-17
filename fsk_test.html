@@ -52,7 +52,7 @@
 <body>
 
     <h1>FSK データ受信 修2</h1>
-    <p>仕様: 300bps / '0'(Space) = 1200Hz / '1'(Mark) = 2400Hz</p>
+    <p>仕様: 300bps / '0'(Space) = 1200Hz / '1'(Mark) = 2200Hz</p>
 
     <div class="controls">
         <button id="startBtn">マイク入力開始</button>
@@ -73,7 +73,7 @@
         // FSK & UART デコード用の状態変数
         const BAUD_RATE = 300;
         const FREQ_SPACE = 1200; // '0'
-        const FREQ_MARK = 2400;  // '1'
+        const FREQ_MARK = 2200;  // '1'
         
         let sampleRate = 44100;
         let samplesPerBit = sampleRate / BAUD_RATE;
