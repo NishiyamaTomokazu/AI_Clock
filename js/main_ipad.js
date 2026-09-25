@@ -1,248 +1,155 @@
 // ==========================================
-// iPadOS用 (マイク音波通信) 送受信モジュール
+// iPadOS用 (Web Audio API) 音声通信モジュール
 // ==========================================
 
-console.log("【iPad通信モード】音声送受信モジュールをロードしました。");
+console.log("【iPad通信モード】音声通信モジュールをロードしました。");
 
 window.hasClickedConnect = false;
-window.sharedHidDevice = null;
+window.sharedHidDevice = { opened: false, productName: "音声通信 (iPad)" }; // ダミーデバイス
 
-let audioContext;
-let analyser;
-let microphone;
-let isListening = false;
+const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
 
-// --- 受信側 (マイコン -> iPad) のFSK仕様 ---
-const FREQ_SPACE = 1200; // ビット「0」の周波数 (Hz)
-const FREQ_MARK  = 2200; // ビット「1」の周波数 (Hz)
-const BAUD_RATE  = 300;  // 通信速度 (bps)
-const BIT_TIME_MS = 1000 / BAUD_RATE; // 1ビットの長さ (約3.33ミリ秒)
-
-// ==========================================
-// 1. 接続・初期化処理
-// ==========================================
-window.connectSharedDevice = async function() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        microphone = audioContext.createMediaStreamSource(stream);
-        
-        analyser = audioContext.createAnalyser();
-        // 300bpsに追従するためウィンドウサイズを小さくし、スムージングを切る
-        analyser.fftSize = 256; 
-        analyser.smoothingTimeConstant = 0.0; 
-        
-        microphone.connect(analyser);
-        
-        isListening = true;
-        window.sharedHidDevice = { productName: "iPad音声通信 (FSK 300bps)", opened: true };
-        
-        console.log("🎤 マイク接続成功: FSK受信の待機を開始します。(300bps)");
-        startFSKDecoder();
-        
-        return window.sharedHidDevice;
-        
-    } catch (error) {
-        console.error("マイク接続エラー:", error);
-        alert("マイクへのアクセスが許可されていません。\nブラウザの設定を確認してください。");
-        return null;
+function ensureAudioContext() {
+    if (!AudioContextClass) return null;
+    if (!audioCtx) {
+        audioCtx = new AudioContextClass();
     }
-};
-
-// ==========================================
-// 2. 送信処理 (iPad -> マイコン)
-// app_ipad_2.js の仕様をベースに実装
-// ==========================================
-window.transferSharedHID = async function(outData) {
-    console.log("【iPad送信】データ送信開始:", outData);
-    if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(function (e) { console.warn('AudioContext resume failed:', e); });
     }
-    if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-    }
-    
-    // バイト配列を2進数の配列に変換[cite: 12]
-    let binaryDataArray = outData.map(getBinary);
-    outputSoundData(binaryDataArray);
-};
+    return audioCtx;
+}
 
-// バイトデータを8ビットの配列（MSBファースト）に変換する関数[cite: 12]
 function getBinary(arrayData) {
-    var tmp = arrayData;
+    let tmp = arrayData;
     let returnData = Array(8);
     for (let i = 0; i < 8; i++) {
         tmp = tmp & 0b10000000;
-        if (tmp == 0) {
-            returnData[i] = 0;
-        } else {
-            returnData[i] = 1;
-        }
+        returnData[i] = (tmp == 0) ? 0 : 1;
         arrayData = arrayData << 1;
         tmp = arrayData;
     }
     return returnData;
 }
 
-// AudioBufferを生成して波形を出力する関数[cite: 12]
-function outputSoundData(binaryDataArray) {
-    if (!audioContext) return;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    var channels = 2; // app_ipad_2.js に合わせたチャンネル設定[cite: 12]
-    var sampleRate = audioContext.sampleRate || 44100;
-    
-    // 必要な総サンプル数を事前計算[cite: 12]
-    let est = 0;
-    let counterEst = 0;
-    binaryDataArray.forEach(element => {
-        element.forEach(x => {
-            if ((counterEst % 8) == 0) est += 50;
-            if (x == 0) est += 10;
-            else est += 20;
-            counterEst++;
-            if ((counterEst % 8) == 0) est += 20;
+function sendCombinedDataBySound(packets) {
+    const audioCtxLocal = ensureAudioContext();
+    if (!audioCtxLocal) return;
+
+    const channels = 2;
+    const sampleRate = audioCtxLocal.sampleRate || 44100;
+    const binaryPackets = packets.map(packet => packet.map(getBinary));
+
+    let totalSamples = 0;
+    const waitSamples = Math.floor(sampleRate * 0.5); // ブロック間待機500ms
+
+    binaryPackets.forEach((binaryDataArray) => {
+        let est = 0;
+        let counterEst = 0;
+        binaryDataArray.forEach(element => {
+            element.forEach(x => {
+                if ((counterEst % 8) == 0) est += 50;
+                if (x == 0) est += 10;
+                else est += 20;
+                counterEst++;
+                if ((counterEst % 8) == 0) est += 20;
+            })
         });
+        totalSamples += est + 1024 + waitSamples;
     });
-    
-    const waitSamples = Math.floor(sampleRate * 0.1); 
-    let totalSamples = est + 1024 + waitSamples;
 
-    var myArrayBuffer = audioContext.createBuffer(channels, totalSamples, sampleRate);
-    var newArray = myArrayBuffer.getChannelData(0);
-
+    const myArrayBuffer = audioCtxLocal.createBuffer(channels, totalSamples, sampleRate);
+    const newArray = myArrayBuffer.getChannelData(0);
     let i = 0;
-    var tmp = 0;
-    let counter = 0;
+    let tmp = 0;
 
-    // 波形の書き込みロジック[cite: 12]
-    binaryDataArray.forEach(element => {
-        element.forEach(x => {
-            if ((counter % 8) == 0) {
-                tmp = i + 20;
-                while (i < tmp) newArray[i++] = 0;
-                tmp = i + 30;
-                while (i < tmp) newArray[i++] = 1;
-            }
-            if (x == 0) {
-                tmp = i + 5;
-                while (i < tmp) newArray[i++] = 0;
-                tmp = i + 5;
-                while (i < tmp) newArray[i++] = 1;
-            } else {
-                tmp = i + 5;
-                while (i < tmp) newArray[i++] = 0;
-                tmp = i + 15;
-                while (i < tmp) newArray[i++] = 1;
-            }
-            counter++;
-            if ((counter % 8) == 0) {
-                tmp = i + 20;
-                while (i < tmp) newArray[i++] = 0;
-            }
+    binaryPackets.forEach((binaryDataArray) => {
+        let counter = 0;
+        binaryDataArray.forEach(element => {
+            element.forEach(x => {
+                if ((counter % 8) == 0) {
+                    tmp = i + 20; while (i < tmp) newArray[i++] = 0;
+                    tmp = i + 30; while (i < tmp) newArray[i++] = 1;
+                }
+                if (x == 0) {
+                    tmp = i + 5; while (i < tmp) newArray[i++] = 0;
+                    tmp = i + 5; while (i < tmp) newArray[i++] = 1;
+                } else {
+                    tmp = i + 5; while (i < tmp) newArray[i++] = 0;
+                    tmp = i + 15; while (i < tmp) newArray[i++] = 1;
+                }
+                counter++;
+                if ((counter % 8) == 0) {
+                    tmp = i + 20; while (i < tmp) newArray[i++] = 0;
+                }
+            })
         });
+        i += 1024;
+        tmp = i + waitSamples;
+        while (i < tmp) newArray[i++] = 0;
     });
 
-    var source = audioContext.createBufferSource();
+    const source = audioCtxLocal.createBufferSource();
     source.buffer = myArrayBuffer;
-    source.connect(audioContext.destination);
+    source.connect(audioCtxLocal.destination);
     source.start();
+    
+    console.log("🔊 音声データを出力しました (ブロック間待機: 500ms)");
 }
 
-// ==========================================
-// 3. 受信処理 (FSK 300bps デコーダー)
-// ==========================================
-function startFSKDecoder() {
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    const sampleRate = audioContext.sampleRate;
-    
-    const spaceBin = Math.round(FREQ_SPACE * analyser.fftSize / sampleRate);
-    const markBin  = Math.round(FREQ_MARK * analyser.fftSize / sampleRate);
-    
-    let state = 'IDLE';
-    let bitBuffer = 0;
-    let bitCount = 0;
-    let lastBitTime = 0;
-    
-    let receivedBytes = [];
-    let receiveTimeout;
-    
-    setInterval(() => {
-        if (!isListening) return;
-        analyser.getByteFrequencyData(dataArray);
-        
-        const spaceVol = Math.max(dataArray[spaceBin-1] || 0, dataArray[spaceBin], dataArray[spaceBin+1] || 0);
-        const markVol  = Math.max(dataArray[markBin-1] || 0, dataArray[markBin], dataArray[markBin+1] || 0);
-        
-        let currentSignal = -1; 
-        const THRESHOLD = 50;   
-        
-        if (spaceVol > THRESHOLD && spaceVol > markVol + 15) {
-            currentSignal = 0;
-        } else if (markVol > THRESHOLD && markVol > spaceVol + 15) {
-            currentSignal = 1;
+// 共通関数名で公開
+window.connectSharedDevice = async function() {
+    let ctx = ensureAudioContext();
+    if (ctx) {
+        if (ctx.state === 'suspended') {
+            await ctx.resume();
         }
-        
-        const now = performance.now();
-        
-        switch (state) {
-            case 'IDLE':
-                if (currentSignal === 0) {
-                    state = 'START_BIT';
-                    lastBitTime = now;
-                }
-                break;
-                
-            case 'START_BIT':
-                if (now - lastBitTime >= BIT_TIME_MS / 2) {
-                    if (currentSignal === 0) {
-                        state = 'DATA_BITS';
-                        bitCount = 0;
-                        bitBuffer = 0;
-                        lastBitTime = now + (BIT_TIME_MS / 2);
-                    } else {
-                        state = 'IDLE';
-                    }
-                }
-                break;
-                
-            case 'DATA_BITS':
-                if (now - lastBitTime >= BIT_TIME_MS) {
-                    lastBitTime += BIT_TIME_MS;
-                    
-                    // 受信側はLSBファーストで組み立てる
-                    if (currentSignal === 1) {
-                        bitBuffer |= (1 << bitCount);
-                    }
-                    
-                    bitCount++;
-                    if (bitCount >= 8) {
-                        state = 'STOP_BIT';
-                    }
-                }
-                break;
-                
-            case 'STOP_BIT':
-                if (now - lastBitTime >= BIT_TIME_MS) {
-                    receivedBytes.push(bitBuffer);
-                    console.log("📥 [マイク受信] 1バイト復元:", bitBuffer);
-                    
-                    clearTimeout(receiveTimeout);
-                    receiveTimeout = setTimeout(() => {
-                        const frame = document.getElementById('content-frame');
-                        if (frame && frame.contentWindow && receivedBytes.length > 0) {
-                            console.log("🚀 [アプリへ通知(シミュレータ連動)]:", receivedBytes);
-                            frame.contentWindow.dispatchEvent(new CustomEvent('hid-input', {
-                                detail: { data: [...receivedBytes] }
-                            }));
-                            receivedBytes = [];
-                        }
-                    }, 30);
-                    
-                    state = 'IDLE';
-                }
-                break;
+        let buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+        let source = ctx.createBufferSource();
+        source.buffer = buffer; 
+        source.connect(ctx.destination); 
+        source.start(0);
+        console.log("🔓 音声通信のロックを解除しました");
+        await wait(400); 
+    }
+    window.sharedHidDevice.opened = true;
+    return window.sharedHidDevice;
+};
+
+// 共通関数名で公開
+window.transferSharedHID = async function(outData) {
+    console.log("◆ 送信データ (元データ):", outData); 
+    let allPackets = [];
+    
+    // データの先頭が「230」なら16バイト分割＆ヘッダー付与
+    if (outData[0] === 230) {
+        let blockNum = 1;
+        for (let i = 0; i < outData.length; i += 16) {
+            let packet = Array(19).fill(0);
+            packet[0] = 253; // データ送信の目印
+            packet[1] = 1;   // LEDデータ転送の目印
+            packet[2] = blockNum; // ブロック番号
+            
+            let chunk = outData.slice(i, i + 16);
+            for (let j = 0; j < chunk.length; j++) { 
+                packet[3 + j] = chunk[j]; 
+            }
+            allPackets.push(packet);
+            blockNum++;
         }
-    }, 1); 
-}
+    } 
+    // それ以外はそのまま19バイトで送る
+    else {
+        let packet = Array(19).fill(0);
+        for (let i = 0; i < outData.length; i++) {
+            if (i < 19) packet[i] = outData[i];
+        }
+        allPackets.push(packet);
+    }
+    
+    console.log(`【iPad送信】全${allPackets.length}個のパケットを音声で送信します`, allPackets);
+    sendCombinedDataBySound(allPackets);
+};
