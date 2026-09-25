@@ -491,13 +491,3 @@ body.iframe-body {
    text-align: right;
 }
 
-/* ==========================================
-   実行中のブロックのハイライト設定（破線）
-   ========================================= */
-.blocklyHighlighted > .blocklyPath,
-.blocklyHighlightedConnectionPath {
-    stroke: #ff3333 !important;      /* 目立つ赤色 */
-    stroke-width: 5px !important;    /* 線の太さ */
-    stroke-dasharray: 6, 6 !important; /* 破線の間隔 */
-    fill-opacity: 0.8;
-}
