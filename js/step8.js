@@ -128,21 +128,16 @@ function render() {
     }
 }
 
-function resetSimulator() { 
-    appState = 8; 
-    render(); 
-    // ★追加: リセット時にハイライトをすべて消す
+function resetSimulator() {
+    appState = 8;
+    render();
     if (window.workspace) {
         window.workspace.highlightBlock(null);
     }
 }
 
-// ==========================================
-// プログラム転送処理
-// ==========================================
 document.getElementById('transfer-btn').addEventListener('click', async () => {
     if (isSimulating || !window.workspace) return;
-
     const startBlock = window.workspace.getBlocksByType('cmd_start')[0];
     if (!startBlock) return alert("「プログラムスタート」ブロックが見つかりません！");
 
@@ -152,7 +147,6 @@ document.getElementById('transfer-btn').addEventListener('click', async () => {
         while (block) {
             let info = { addr: currentAddr, size: 0 };
             blockData.set(block.id, info);
-
             if (block.type === 'cmd_if' || block.type === 'cmd_if_else') {
                 info.size = 3; 
                 currentAddr += 3;
@@ -244,8 +238,6 @@ document.getElementById('transfer-btn').addEventListener('click', async () => {
         hidBytes.push(...payloadBytes);
         hidBytes.push(231, 250); 
         
-        console.log("◆生成されたプログラムデータ送信:", hidBytes);
-        
         if (window.parent && window.parent.transferSharedHID) {
             await window.parent.transferSharedHID(hidBytes);
         } else {
@@ -273,7 +265,6 @@ document.getElementById('run-btn').addEventListener('click', async () => {
 
     async function executeBlock(block) {
         while (block && isSimulating) {
-            // ★追加: 実行中のブロックをハイライトする
             window.workspace.highlightBlock(block.id);
 
             if (block.type === 'cmd_led') {
@@ -296,9 +287,6 @@ document.getElementById('run-btn').addEventListener('click', async () => {
                 await waitForSensor(171, 1);
             }
             else if (block.type === 'cmd_if' || block.type === 'cmd_if_else') {
-                // 分岐判定の瞬間を見せるために少し待機
-                await wait(300);
-                
                 let condBlock = block.getInputTargetBlock('COND');
                 let condType = condBlock ? condBlock.type : 'cond_switch_on';
                 let targetCode = (condType === 'cond_switch_off') ? 181 : 180;
@@ -319,11 +307,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
                 
                 for (let i = 0; i < count; i++) {
                     if (!isSimulating) break;
-                    
-                    // ★追加: ループの先頭に戻ったときに、ループブロックを再ハイライト
                     window.workspace.highlightBlock(block.id);
-                    await wait(300); // 視覚的なインターバル
-                    
                     if (doBlock) {
                         await executeBlock(doBlock);
                     }
@@ -333,10 +317,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         }
     }
 
-    // ★追加: 実行開始時にスタートブロックを一瞬ハイライト
     window.workspace.highlightBlock(startBlock.id);
-    //await wait(400);
-
     await executeBlock(startBlock.getNextBlock());
 
     isSimulating = false;

@@ -248,7 +248,6 @@ document.getElementById('run-btn').addEventListener('click', async () => {
                 await waitForSensor(171, 1);
             }
             else if (block.type === 'cmd_if' || block.type === 'cmd_if_else') {
-                await wait(300);
                 let condBlock = block.getInputTargetBlock('COND');
                 let condType = condBlock ? condBlock.type : 'cond_switch_on';
                 let targetCode = (condType === 'cond_switch_off') ? 181 : 180;
@@ -266,7 +265,6 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     }
 
     window.workspace.highlightBlock(startBlock.id);
-    //await wait(400);
     await executeBlock(startBlock.getNextBlock());
 
     isSimulating = false;
