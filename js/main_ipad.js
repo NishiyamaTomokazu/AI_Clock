@@ -127,20 +127,20 @@ window.connectSharedDevice = async function() {
         await wait(400); 
 
         // --- 追加: マイク入力の許可とFSKデコーダーの開始 ---
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            microphone = ctx.createMediaStreamSource(stream);
-            analyser = ctx.createAnalyser();
-            analyser.fftSize = 256; 
-            analyser.smoothingTimeConstant = 0.0; 
-            microphone.connect(analyser);
-            isListening = true;
-            console.log("🎤 マイク接続成功: FSK受信の待機を開始します。(300bps)");
-            startFSKDecoder();
-        } catch (error) {
-            console.error("マイク接続エラー:", error);
-            alert("マイクへのアクセスが許可されていません。\nブラウザの設定を確認してください。");
-        }
+        // try {
+        //     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        //     microphone = ctx.createMediaStreamSource(stream);
+        //     analyser = ctx.createAnalyser();
+        //     analyser.fftSize = 256; 
+        //     analyser.smoothingTimeConstant = 0.0; 
+        //     microphone.connect(analyser);
+        //     isListening = true;
+        //     console.log("🎤 マイク接続成功: FSK受信の待機を開始します。(300bps)");
+        //     startFSKDecoder();
+        // } catch (error) {
+        //     console.error("マイク接続エラー:", error);
+        //     alert("マイクへのアクセスが許可されていません。\nブラウザの設定を確認してください。");
+        // }
     }
     window.sharedHidDevice.opened = true;
     return window.sharedHidDevice;
@@ -165,7 +165,7 @@ window.transferSharedHID = async function(outData) {
             }
             allPackets.push(packet);
             blockNum++;
-        }
+        } 
     } 
     else {
         let packet = Array(19).fill(0);
