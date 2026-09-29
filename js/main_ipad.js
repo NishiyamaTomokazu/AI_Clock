@@ -49,6 +49,7 @@ function sendCombinedDataBySound(packets) {
     if (!audioCtxLocal) return;
 
     const channels = 2;
+    // ここで取得されるsampleRateが、マイク設定と一致していることが重要
     const sampleRate = audioCtxLocal.sampleRate || 44100;
     const binaryPackets = packets.map(packet => packet.map(getBinary));
 
@@ -109,60 +110,69 @@ function sendCombinedDataBySound(packets) {
     console.log("🔊 音声データを出力しました (ブロック間待機: 500ms)");
 }
 
-// 共通関数名で公開
+// ==========================================
+// ★修正: 接続処理の順番を「マイク許可」→「スピーカー準備」に変更
+// ==========================================
 window.connectSharedDevice = async function() {
-    let ctx = ensureAudioContext();
-    if (ctx) {
-        if (ctx.state === 'suspended') {
-            await ctx.resume();
+    try {
+        // 1. まずマイクの許可を取り、iPadの音声システムを確定させる
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false
+            } 
+        });
+        
+        // 2. マイクの準備ができてから、音声出力(スピーカー)を新しく作り直す
+        if (audioCtx) {
+            await audioCtx.close();
+            audioCtx = null;
         }
-        let buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
-        let source = ctx.createBufferSource();
+        audioCtx = new AudioContextClass();
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
+
+        // 3. マイクとデコーダーの接続
+        microphone = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256; 
+        analyser.smoothingTimeConstant = 0.0; 
+        microphone.connect(analyser);
+        isListening = true;
+        console.log("🎤 マイク接続成功: FSK受信の待機を開始します。(300bps)");
+        startFSKDecoder();
+
+        // 4. 最後にダミー音声を鳴らし、音声出力を完全にロック解除する
+        let buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+        let source = audioCtx.createBufferSource();
         source.buffer = buffer; 
-        source.connect(ctx.destination); 
+        source.connect(audioCtx.destination); 
         source.start(0);
         console.log("🔓 音声通信のロックを解除しました");
-        await wait(400); 
-
-        // ★修正ポイント: iPadのエコーキャンセルを明示的にOFFにして、スピーカーの音量低下を防ぐ
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false
-                } 
-            });
-            microphone = ctx.createMediaStreamSource(stream);
-            analyser = ctx.createAnalyser();
-            analyser.fftSize = 256; 
-            analyser.smoothingTimeConstant = 0.0; 
-            microphone.connect(analyser);
-            isListening = true;
-            console.log("🎤 マイク接続成功: FSK受信の待機を開始します。(300bps)");
-            startFSKDecoder();
-        } catch (error) {
-            console.error("マイク接続エラー:", error);
-            alert("マイクへのアクセスが許可されていません。\nブラウザの設定を確認してください。");
-        }
+        
+    } catch (error) {
+        console.error("マイク接続エラー:", error);
+        alert("マイクへのアクセスが許可されていません。\nブラウザの設定を確認してください。");
+        return null;
     }
     window.sharedHidDevice.opened = true;
     return window.sharedHidDevice;
 };
 
-// 共通関数名で公開
+// 送信処理
 window.transferSharedHID = async function(outData) {
     console.log("◆ 送信データ (元データ):", outData); 
     let allPackets = [];
     
-    // データの先頭が「230」なら16バイト分割＆ヘッダー付与
     if (outData[0] === 230) {
         let blockNum = 1;
         for (let i = 0; i < outData.length; i += 16) {
             let packet = Array(19).fill(0);
-            packet[0] = 253; // データ送信の目印
-            packet[1] = 1;   // LEDデータ転送の目印
-            packet[2] = blockNum; // ブロック番号
+            packet[0] = 253; 
+            packet[1] = 1;   
+            packet[2] = blockNum; 
             
             let chunk = outData.slice(i, i + 16);
             for (let j = 0; j < chunk.length; j++) { 
@@ -172,7 +182,6 @@ window.transferSharedHID = async function(outData) {
             blockNum++;
         }
     } 
-    // それ以外はそのまま19バイトで送る
     else {
         let packet = Array(19).fill(0);
         for (let i = 0; i < outData.length; i++) {
