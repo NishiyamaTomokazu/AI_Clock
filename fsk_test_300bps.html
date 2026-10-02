@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FSK(300bps) 受信テストツール</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background-color: #f5f6fa; }
+        h2 { color: #2f3640; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; }
+        button { font-size: 16px; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; }
+        #start-btn { background-color: #4cd137; }
+        #start-btn:disabled { background-color: #a4b0be; cursor: not-allowed; }
+        #stop-btn { background-color: #e84118; }
+        #stop-btn:disabled { background-color: #a4b0be; cursor: not-allowed; }
+        #status-text { font-weight: bold; margin-bottom: 10px; color: #7f8fa6; }
+        #output { width: 100%; height: 400px; font-size: 16px; font-family: 'Courier New', Courier, monospace; padding: 10px; box-sizing: border-box; border: 2px solid #dcdde1; border-radius: 6px; resize: vertical; }
+    </style>
+</head>
+<body>
+
+    <h2>🎤 FSK(300bps) 受信テストツール</h2>
+    
+    <div class="controls">
+        <button id="start-btn">マイク入力開始</button>
+        <button id="stop-btn" disabled>マイク入力停止</button>
+    </div>
+    
+    <div id="status-text">状態: 停止中</div>
+    
+    <textarea id="output" readonly placeholder="受信したデータがここに表示されます..."></textarea>
+
+    <script>
+        let audioContext;
+        let analyser;
+        let microphone;
+        let isListening = false;
+        let intervalId;
+
+        // FSK通信の設定 (マイコンの仕様に合わせる)
+        const FREQ_SPACE = 1200; // ビット0 (Space) / スタートビット
+        const FREQ_MARK  = 2200; // ビット1 (Mark) / 待機・ストップビット
+        const BAUD_RATE  = 300;  // 通信速度 (bps)
+        const BIT_TIME_MS = 1000 / BAUD_RATE; // 1ビットあたりの時間(約3.33ms)
+
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const statusText = document.getElementById('status-text');
+        const output = document.getElementById('output');
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                // エコーキャンセルやノイズ除去を無効化し、生の音を取得する
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    } 
+                });
+                
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                audioContext = new AudioContextClass();
+                microphone = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                
+                // 300bpsの高速な変化に追従するため、ウィンドウサイズを小さくし残像を消す
+                analyser.fftSize = 256;
+                analyser.smoothingTimeConstant = 0.0;
+                
+                microphone.connect(analyser);
+                isListening = true;
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusText.textContent = "状態: 受信中... (待機中: Mark 2200Hz を監視)";
+                statusText.style.color = "#4cd137";
+                
+                appendData("--- マイクの監視を開始しました ---");
+                startFSKDecoder();
+                
+            } catch (err) {
+                alert("マイクへのアクセスが拒否されたか、エラーが発生しました。\nブラウザの設定を確認してください。");
+                console.error(err);
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            isListening = false;
+            clearInterval(intervalId);
+            
+            if (audioContext) {
+                audioContext.close();
+            }
+            
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusText.textContent = "状態: 停止中";
+            statusText.style.color = "#7f8fa6";
+            
+            appendData("--- マイクの監視を終了しました ---");
+        });
+
+        function appendData(text) {
+            const time = new Date().toLocaleTimeString();
+            output.value += `[${time}] ${text}\n`;
+            output.scrollTop = output.scrollHeight; // 自動スクロール
+        }
+
+        // FSKデコード処理本体
+        function startFSKDecoder() {
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            const sampleRate = audioContext.sampleRate;
+            
+            const spaceBin = Math.round(FREQ_SPACE * analyser.fftSize / sampleRate);
+            const markBin  = Math.round(FREQ_MARK * analyser.fftSize / sampleRate);
+            
+            let state = 'IDLE';
+            let bitBuffer = 0;
+            let bitCount = 0;
+            let lastBitTime = 0;
+            
+            // 300bpsのため、1ミリ秒間隔という限界速度で監視する
+            intervalId = setInterval(() => {
+                if (!isListening) return;
+                
+                analyser.getByteFrequencyData(dataArray);
+                
+                // 周辺のビンの音量も見てピークを判定（多少の周波数ズレを許容）
+                const spaceVol = Math.max(dataArray[spaceBin-1] || 0, dataArray[spaceBin], dataArray[spaceBin+1] || 0);
+                const markVol  = Math.max(dataArray[markBin-1] || 0, dataArray[markBin], dataArray[markBin+1] || 0);
+                
+                let currentSignal = -1; // -1:無音/ノイズ, 0:Space(1200Hz), 1:Mark(2200Hz)
+                const THRESHOLD = 50;   // 雑音を無視するしきい値
+                
+                if (spaceVol > THRESHOLD && spaceVol > markVol + 15) {
+                    currentSignal = 0;
+                } else if (markVol > THRESHOLD && markVol > spaceVol + 15) {
+                    currentSignal = 1;
+                }
+                
+                const now = performance.now();
+                
+                // UART(シリアル通信)ライクなステートマシン
+                switch (state) {
+                    case 'IDLE':
+                        // 待機中(Mark: 1)の状態から、スタートビット(Space: 0)への変化を捉える
+                        if (currentSignal === 0) {
+                            state = 'START_BIT';
+                            lastBitTime = now;
+                        }
+                        break;
+                        
+                    case 'START_BIT':
+                        // 0.5ビット時間経過時にまだ0(Space)なら、本物のスタートビットとみなす
+                        if (now - lastBitTime >= BIT_TIME_MS / 2) {
+                            if (currentSignal === 0) {
+                                state = 'DATA_BITS';
+                                bitCount = 0;
+                                bitBuffer = 0;
+                                lastBitTime = now + (BIT_TIME_MS / 2); // 次のサンプリング基準時間をビットの中央に合わせる
+                            } else {
+                                state = 'IDLE'; // ノイズだった
+                            }
+                        }
+                        break;
+                        
+                    case 'DATA_BITS':
+                        // 1ビット時間(約3.33ms)ごとにサンプリング
+                        if (now - lastBitTime >= BIT_TIME_MS) {
+                            lastBitTime += BIT_TIME_MS;
+                            
+                            // Mark(1)ならフラグを立てる (LSBファースト)
+                            if (currentSignal === 1) {
+                                bitBuffer |= (1 << bitCount);
+                            }
+                            // 無音(-1)やSpace(0)の場合は0のまま
+                            
+                            bitCount++;
+                            if (bitCount >= 8) {
+                                state = 'STOP_BIT';
+                            }
+                        }
+                        break;
+                        
+                    case 'STOP_BIT':
+                        // ストップビットのタイミング(1ビット時間後)で1バイトを確定して表示
+                        if (now - lastBitTime >= BIT_TIME_MS) {
+                            const hex = "0x" + bitBuffer.toString(16).padStart(2, '0').toUpperCase();
+                            appendData(`受信データ: ${bitBuffer} (${hex})`);
+                            
+                            state = 'IDLE'; // 再び待機状態へ
+                        }
+                        break;
+                }
+            }, 1);
+        }
+    </script>
+</body>
+</html>
