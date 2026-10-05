@@ -1,192 +1,291 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FSK(50bps) 受信テストツール</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background-color: #f5f6fa; }
-        h2 { color: #2f3640; }
-        .controls { margin-bottom: 20px; display: flex; gap: 10px; }
-        button { font-size: 16px; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; }
-        #start-btn { background-color: #4cd137; }
-        #start-btn:disabled { background-color: #a4b0be; cursor: not-allowed; }
-        #stop-btn { background-color: #e84118; }
-        #stop-btn:disabled { background-color: #a4b0be; cursor: not-allowed; }
-        #status-text { font-weight: bold; margin-bottom: 10px; color: #7f8fa6; }
-        #output { width: 100%; height: 400px; font-size: 16px; font-family: 'Courier New', Courier, monospace; padding: 10px; box-sizing: border-box; border: 2px solid #dcdde1; border-radius: 6px; resize: vertical; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FSK 100bps Receiver (iPad)</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 20px;
+      background: #f7f9fa;
+      color: #333;
+    }
+    h2 { margin-bottom: 8px; }
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    button {
+      font-size: 16px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #btnStart { background-color: #007aff; color: white; }
+    #btnStop { background-color: #e5e5ea; color: #333; }
+    #btnStart:disabled, #btnStop:disabled { opacity: 0.4; cursor: not-allowed; }
+    .status-panel {
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: #666;
+    }
+    .tone-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+      background-color: #ccc;
+    }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      height: 220px;
+      font-family: monospace;
+      font-size: 15px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fff;
+    }
+  </style>
 </head>
 <body>
 
-    <h2>🎤 FSK(100bps) 受信テストツール</h2>
-    
-    <div class="controls">
-        <button id="start-btn">マイク入力開始</button>
-        <button id="stop-btn" disabled>マイク入力停止</button>
-    </div>
-    
-    <div id="status-text">状態: 停止中</div>
-    
-    <textarea id="output" readonly placeholder="受信したデータがここに表示されます..."></textarea>
+  <h2>FSK (100 bps) デコーダー</h2>
+  <div class="status-panel">
+    ステータス: <span id="lblStatus">停止中</span> | 
+    検出信号: <span id="toneIndicator" class="tone-indicator"></span><span id="lblTone">-</span>
+  </div>
 
-    <script>
-        let audioContext;
-        let analyser;
-        let microphone;
-        let isListening = false;
-        let intervalId;
+  <div class="controls">
+    <button id="btnStart">マイク入力開始</button>
+    <button id="btnStop" disabled>マイク入力停止</button>
+  </div>
 
-        // FSK通信の設定 (50bpsへ変更)
-        const FREQ_SPACE = 1200; // ビット0 (Space) / スタートビット
-        const FREQ_MARK  = 2200; // ビット1 (Mark) / 待機・ストップビット
-        const BAUD_RATE  =  100;   // 通信速度 (bps)
-        const BIT_TIME_MS = 1000 / BAUD_RATE; // 1ビットあたりの時間(20ms)
+  <h3>受信データ</h3>
+  <textarea id="txtOutput" readonly placeholder="ここに受信したデータが表示されます..."></textarea>
 
-        const startBtn = document.getElementById('start-btn');
-        const stopBtn = document.getElementById('stop-btn');
-        const statusText = document.getElementById('status-text');
-        const output = document.getElementById('output');
+  <script>
+    // --- 通信パラメータ ---
+    const FREQ_SPACE = 1200; // "0"
+    const FREQ_MARK  = 2200; // "1"
+    const BIT_RATE   = 100;  // 100 bps
+    const BIT_DURATION_SEC = 1.0 / BIT_RATE; // 0.010秒 (10ms)
 
-        startBtn.addEventListener('click', async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false
-                    } 
-                });
-                
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                audioContext = new AudioContextClass();
-                microphone = audioContext.createMediaStreamSource(stream);
-                analyser = audioContext.createAnalyser();
-                
-                // 50bps(20ms)に合わせて解析ウィンドウを少し広げ、周波数分解能を上げる
-                analyser.fftSize = 512;
-                analyser.smoothingTimeConstant = 0.0;
-                
-                microphone.connect(analyser);
-                isListening = true;
-                
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-                statusText.textContent = "状態: 受信中... (待機中: Mark 2200Hz を監視)";
-                statusText.style.color = "#4cd137";
-                
-                appendData("--- マイクの監視を開始しました ---");
-                startFSKDecoder();
-                
-            } catch (err) {
-                alert("マイクへのアクセスが拒否されたか、エラーが発生しました。\nブラウザの設定を確認してください。");
-                console.error(err);
-            }
-        });
+    // --- Web Audio 関連 ---
+    let audioCtx = null;
+    let micStream = null;
+    let scriptNode = null;
 
-        stopBtn.addEventListener('click', () => {
-            isListening = false;
-            clearInterval(intervalId);
-            
-            if (audioContext) {
-                audioContext.close();
-            }
-            
-            startBtn.disabled = false;
-            stopBtn.disabled = true;
-            statusText.textContent = "状態: 停止中";
-            statusText.style.color = "#7f8fa6";
-            
-            appendData("--- マイクの監視を終了しました ---");
-        });
+    // --- UART 受信ステートマシン管理 ---
+    const STATE_IDLE  = 0;
+    const STATE_START = 1;
+    const STATE_DATA  = 2;
+    const STATE_STOP  = 3;
 
-        function appendData(text) {
-            const time = new Date().toLocaleTimeString();
-            output.value += `[${time}] ${text}\n`;
-            output.scrollTop = output.scrollHeight; 
+    let rxState = STATE_IDLE;
+    let sampleRate = 44100;
+    let samplesPerBit = 0;
+    let sampleCounter = 0;
+    let nextSamplePoint = 0;
+    let currentBitIndex = 0;
+    let receivedByte = 0;
+
+    // UI要素
+    const btnStart = document.getElementById('btnStart');
+    const btnStop = document.getElementById('btnStop');
+    const lblStatus = document.getElementById('lblStatus');
+    const lblTone = document.getElementById('lblTone');
+    const toneIndicator = document.getElementById('toneIndicator');
+    const txtOutput = document.getElementById('txtOutput');
+
+    /**
+     * Goertzel アルゴリズム: 特定周波数の相対電力を計算
+     */
+    function goertzelPower(buffer, targetFreq, sRate) {
+      const N = buffer.length;
+      const k = Math.round((N * targetFreq) / sRate);
+      const omega = (2.0 * Math.PI * k) / N;
+      const coeff = 2.0 * Math.cos(omega);
+
+      let q0 = 0, q1 = 0, q2 = 0;
+      for (let i = 0; i < N; i++) {
+        q0 = coeff * q1 - q2 + buffer[i];
+        q2 = q1;
+        q1 = q0;
+      }
+      return q1 * q1 + q2 * q2 - q1 * q2 * coeff;
+    }
+
+    /**
+     * バッファブロックのビット値 (0 or 1) を判別
+     */
+    function detectTone(buffer) {
+      const p0 = goertzelPower(buffer, FREQ_SPACE, sampleRate);
+      const p1 = goertzelPower(buffer, FREQ_MARK, sampleRate);
+      
+      // ノイズフロアしきい値判定 (無音時の誤検出を防ぐ)
+      const threshold = 0.01;
+      if (p0 < threshold && p1 < threshold) return -1; // シグナルなし
+
+      return (p1 > p0) ? 1 : 0;
+    }
+
+    /**
+     * マイク入力開始
+     */
+    async function startListening() {
+      try {
+        // iOS Safari ではユーザー操作イベント内で AudioContext を初期化/resume する必要がある
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
         }
 
-        // FSKデコード処理本体
-        function startFSKDecoder() {
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            const sampleRate = audioContext.sampleRate;
-            
-            const spaceBin = Math.round(FREQ_SPACE * analyser.fftSize / sampleRate);
-            const markBin  = Math.round(FREQ_MARK * analyser.fftSize / sampleRate);
-            
-            let state = 'IDLE';
-            let bitBuffer = 0;
-            let bitCount = 0;
-            let lastBitTime = 0;
-            
-            // 3ミリ秒間隔で監視
-            intervalId = setInterval(() => {
-                if (!isListening) return;
-                
-                analyser.getByteFrequencyData(dataArray);
-                
-                const spaceVol = Math.max(dataArray[spaceBin-1] || 0, dataArray[spaceBin], dataArray[spaceBin+1] || 0);
-                const markVol  = Math.max(dataArray[markBin-1] || 0, dataArray[markBin], dataArray[markBin+1] || 0);
-                
-                let currentSignal = -1;
-                const THRESHOLD = 50;
-                
-                if (spaceVol > THRESHOLD && spaceVol > markVol + 15) {
-                    currentSignal = 0;
-                } else if (markVol > THRESHOLD && markVol > spaceVol + 15) {
-                    currentSignal = 1;
-                }
-                
-                const now = performance.now();
-                
-                switch (state) {
-                    case 'IDLE':
-                        if (currentSignal === 0) {
-                            state = 'START_BIT';
-                            lastBitTime = now;
-                        }
-                        break;
-                        
-                    case 'START_BIT':
-                        if (now - lastBitTime >= BIT_TIME_MS / 2) {
-                            if (currentSignal === 0) {
-                                state = 'DATA_BITS';
-                                bitCount = 0;
-                                bitBuffer = 0;
-                                lastBitTime = now + (BIT_TIME_MS / 2); 
-                            } else {
-                                state = 'IDLE'; 
-                            }
-                        }
-                        break;
-                        
-                    case 'DATA_BITS':
-                        if (now - lastBitTime >= BIT_TIME_MS) {
-                            lastBitTime += BIT_TIME_MS;
-                            
-                            if (currentSignal === 1) {
-                                bitBuffer |= (1 << bitCount);
-                            }
-                            
-                            bitCount++;
-                            if (bitCount >= 8) {
-                                state = 'STOP_BIT';
-                            }
-                        }
-                        break;
-                        
-                    case 'STOP_BIT':
-                        if (now - lastBitTime >= BIT_TIME_MS) {
-                            const hex = "0x" + bitBuffer.toString(16).padStart(2, '0').toUpperCase();
-                            appendData(`受信データ: ${bitBuffer} (${hex})`);
-                            
-                            state = 'IDLE'; 
-                        }
-                        break;
-                }
-            }, 3);
-        }
-    </script>
+        sampleRate = audioCtx.sampleRate;
+        samplesPerBit = Math.round(sampleRate * BIT_DURATION_SEC); // 44.1kHz時: 約441サンプル
+
+        // マイク取得 (AGCやエコーキャンセラをオフにして原音を取得)
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        });
+
+        const source = audioCtx.createMediaStreamSource(micStream);
+
+        // バッファサイズ 256 or 512 (100bps = 10ms周期に対して約5.8ms / 11.6ms)
+        const bufferSize = 256;
+        scriptNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+
+        // 音声処理ループ
+        scriptNode.onaudioprocess = (e) => {
+          const inputData = e.inputBuffer.getChannelData(0);
+          const currentBit = detectTone(inputData);
+
+          // UI表示更新 (トーンモニタ)
+          if (currentBit === 1) {
+            lblTone.textContent = "1 (2200Hz - Mark)";
+            toneIndicator.style.backgroundColor = "#34c759";
+          } else if (currentBit === 0) {
+            lblTone.textContent = "0 (1200Hz - Space)";
+            toneIndicator.style.backgroundColor = "#ff9500";
+          } else {
+            lblTone.textContent = "無音 / ノイズ";
+            toneIndicator.style.backgroundColor = "#ccc";
+          }
+
+          // サンプル単位でUARTステートマシンを駆動
+          processUartStateMachine(inputData.length, currentBit);
+        };
+
+        source.connect(scriptNode);
+        scriptNode.connect(audioCtx.destination); // Safari 駆動用ダミー出力
+
+        btnStart.disabled = true;
+        btnStop.disabled = false;
+        lblStatus.textContent = `受信待機中 (${sampleRate} Hz)`;
+      } catch (err) {
+        alert("マイクへのアクセスに失敗しました: " + err.message);
+      }
+    }
+
+    /**
+     * UART 復調処理 (100bps LSBファースト, Start 0, Stop 1)
+     */
+    function processUartStateMachine(chunkSize, currentBit) {
+      sampleCounter += chunkSize;
+
+      switch (rxState) {
+        case STATE_IDLE:
+          // スタートビット "0" を検知したら受信シーケンス開始
+          if (currentBit === 0) {
+            rxState = STATE_START;
+            // ビット中心点（0.5ビット先）をサンプリングポイントに設定
+            nextSamplePoint = sampleCounter + Math.round(samplesPerBit * 0.5);
+          }
+          break;
+
+        case STATE_START:
+          if (sampleCounter >= nextSamplePoint) {
+            // スタートビット中央で再度 "0" であることを確認
+            if (currentBit === 0) {
+              rxState = STATE_DATA;
+              currentBitIndex = 0;
+              receivedByte = 0;
+              nextSamplePoint += samplesPerBit; // 次のビット中央へ
+            } else {
+              // 誤検知の場合はリセット
+              rxState = STATE_IDLE;
+            }
+          }
+          break;
+
+        case STATE_DATA:
+          if (sampleCounter >= nextSamplePoint) {
+            // LSBファーストでビットを格納
+            if (currentBit === 1) {
+              receivedByte |= (1 << currentBitIndex);
+            }
+            currentBitIndex++;
+            nextSamplePoint += samplesPerBit;
+
+            if (currentBitIndex >= 8) {
+              rxState = STATE_STOP;
+            }
+          }
+          break;
+
+        case STATE_STOP:
+          if (sampleCounter >= nextSamplePoint) {
+            // ストップビット中央で "1" であることを検証
+            if (currentBit === 1) {
+              // 1バイト受信完了 -> テキストエリアへ出力
+              const char = String.fromCharCode(receivedByte);
+              txtOutput.value += char;
+              txtOutput.scrollTop = txtOutput.scrollHeight;
+            }
+            rxState = STATE_IDLE;
+          }
+          break;
+      }
+    }
+
+    /**
+     * マイク入力停止
+     */
+    function stopListening() {
+      if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+        micStream = null;
+      }
+      if (scriptNode) {
+        scriptNode.disconnect();
+        scriptNode = null;
+      }
+      if (audioCtx) {
+        audioCtx.close();
+        audioCtx = null;
+      }
+
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      lblStatus.textContent = "停止中";
+      lblTone.textContent = "-";
+      toneIndicator.style.backgroundColor = "#ccc";
+      rxState = STATE_IDLE;
+    }
+
+    btnStart.addEventListener('click', startListening);
+    btnStop.addEventListener('click', stopListening);
+  </script>
 </body>
 </html>
