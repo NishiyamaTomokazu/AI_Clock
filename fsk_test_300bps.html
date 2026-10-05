@@ -19,7 +19,7 @@
 </head>
 <body>
 
-    <h2>🎤 FSK(50bps) 受信テストツール</h2>
+    <h2>🎤 FSK(100bps) 受信テストツール</h2>
     
     <div class="controls">
         <button id="start-btn">マイク入力開始</button>
@@ -40,7 +40,7 @@
         // FSK通信の設定 (50bpsへ変更)
         const FREQ_SPACE = 1200; // ビット0 (Space) / スタートビット
         const FREQ_MARK  = 2200; // ビット1 (Mark) / 待機・ストップビット
-        const BAUD_RATE  =  50;   // 通信速度 (bps)
+        const BAUD_RATE  =  100;   // 通信速度 (bps)
         const BIT_TIME_MS = 1000 / BAUD_RATE; // 1ビットあたりの時間(20ms)
 
         const startBtn = document.getElementById('start-btn');
