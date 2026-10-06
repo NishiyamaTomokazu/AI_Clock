@@ -17,8 +17,8 @@
 
     <div class="app-container step8">
         <div class="panel-header">
-            <h2>STEP8: 繰り返しを使ってみよう</h2>
-            <p>指定した回数だけプログラムをループさせるブロックを使おう！</p>
+            <h2>STEP9: 自由にプログラムを作ってみよう</h2>
+            <p>自由にブロックを組み合わせて、自分だけのプログラムを作ろう！</p>
         </div>
         <div class="content-wrapper">
             <!-- 左側：状態表示と手動ボタン -->
@@ -76,10 +76,16 @@
     <xml id="toolbox" style="display: none">
         <!-- ★追加: ツールボックスの一番上に繰り返しブロックを配置 -->
         <block type="cmd_loop"></block>
+        <block type="cmd_if"></block>
+        <block type="cmd_if_else"></block>
+        <block type="cond_switch_on"></block>
+        <block type="cond_switch_off"></block>
         <block type="cmd_led">
             <field name="COLOR">red</field>
             <field name="TIME">1</field>
         </block>
+        <block type="cmd_wait_switch"></block>
+        <block type="cmd_wait_sound"></block>
     </xml>
 
     <script src="js/blockly_config.js"></script>
