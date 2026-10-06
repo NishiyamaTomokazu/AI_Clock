@@ -3,37 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FSK Receiver (AudioWorklet)</title>
+  <title>FSK デコーダー (200 bps)</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; background: #f7f9fa; color: #333; }
-    h2 { margin-bottom: 8px; }
     .controls { display: flex; gap: 12px; margin: 12px 0 16px; flex-wrap: wrap; }
     button { font-size: 16px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
     #btnStart { background: #007aff; color: #fff; }
     #btnStop, #btnClear { background: #e5e5ea; color: #333; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
-    .panel { font-size: 14px; color: #666; line-height: 2; }
-    .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: #ccc; }
-    input[type=number] { width: 72px; font-size: 14px; padding: 4px; }
-    input[type=range] { vertical-align: middle; width: 180px; }
-    textarea { width: 100%; box-sizing: border-box; height: 220px; font-family: monospace; font-size: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; background: #fff; }
+    textarea { width: 100%; box-sizing: border-box; height: 240px; font-family: monospace; font-size: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; background: #fff; }
   </style>
 </head>
 <body>
-  <h2>FSK デコーダー (AudioWorklet 版)</h2>
-
-  <div class="panel">
-    ボーレート <input type="number" id="inBaud" value="100" min="50" max="2400" step="50"> bps |
-    "0" <input type="number" id="inF0" value="1200" min="300" max="10000" step="100"> Hz |
-    "1" <input type="number" id="inF1" value="2200" min="300" max="10000" step="100"> Hz
-  </div>
-  <div class="panel">
-    ステータス: <span id="lblStatus">停止中</span> |
-    検出信号: <span id="dot" class="dot"></span><span id="lblTone">-</span><br>
-    入力レベル: <span id="lblLevel">0.000</span> |
-    しきい値: <input type="range" id="rngThr" min="0.001" max="0.2" step="0.001" value="0.01"> <span id="lblThr">0.010</span> |
-    フレームエラー: <span id="lblErr">0</span>
-  </div>
+  <h2>FSK デコーダー (200 bps)</h2>
 
   <div class="controls">
     <button id="btnStart">マイク入力開始</button>
@@ -46,60 +28,44 @@
   <script type="module">
     import { FskReceiver } from './js/fsk-receiver.js';
 
-    const $ = (id) => document.getElementById(id);
+    const btnStart = document.getElementById('btnStart');
+    const btnStop = document.getElementById('btnStop');
+    const btnClear = document.getElementById('btnClear');
+    const txtOutput = document.getElementById('txtOutput');
+
     let rx = null;
 
-    $('rngThr').addEventListener('input', () => {
-      const v = parseFloat($('rngThr').value);
-      $('lblThr').textContent = v.toFixed(3);
-      if (rx) rx.setThreshold(v);
-    });
-    $('btnClear').addEventListener('click', () => { $('txtOutput').value = ''; $('lblErr').textContent = '0'; });
-
-    function setRunning(on) {
-      $('btnStart').disabled = on;
-      $('btnStop').disabled = !on;
-      for (const id of ['inBaud', 'inF0', 'inF1']) $(id).disabled = on;
-      if (!on) {
-        $('lblStatus').textContent = '停止中';
-        $('lblTone').textContent = '-';
-        $('dot').style.background = '#ccc';
-      }
-    }
-
-    $('btnStart').addEventListener('click', async () => {
+    btnStart.addEventListener('click', async () => {
+      btnStart.disabled = true;
       rx = new FskReceiver({
-        baud: +$('inBaud').value,
-        freq0: +$('inF0').value,
-        freq1: +$('inF1').value,
-        threshold: parseFloat($('rngThr').value),
+        baud: 200,        // 200 bps
+        freq0: 1200,      // "0" = 1200 Hz
+        freq1: 2200,      // "1" = 2200 Hz
+        threshold: 0.01,  // 信号とみなす最小振幅 (反応しないときは小さく、ノイズを拾うときは大きく)
         onText: (s) => {
-          const t = $('txtOutput');
-          t.value += s;
-          t.scrollTop = t.scrollHeight;
-        },
-        onTone: (tone, level) => {
-          $('lblLevel').textContent = level.toFixed(3);
-          if (tone === 1) { $('lblTone').textContent = '1 (Mark)'; $('dot').style.background = '#34c759'; }
-          else if (tone === 0) { $('lblTone').textContent = '0 (Space)'; $('dot').style.background = '#ff9500'; }
-          else { $('lblTone').textContent = '無音 / ノイズ'; $('dot').style.background = '#ccc'; }
-        },
-        onFrameError: (n) => { $('lblErr').textContent = n; }
+          txtOutput.value += s;
+          txtOutput.scrollTop = txtOutput.scrollHeight;
+        }
       });
       try {
         await rx.start();
-        setRunning(true);
-        $('lblStatus').textContent = `受信待機中 (${rx.sampleRate} Hz)`;
+        btnStop.disabled = false;
       } catch (err) {
-        alert('開始に失敗しました: ' + err.message);
+        alert('マイクを開始できませんでした: ' + err.message);
         rx = null;
+        btnStart.disabled = false;
       }
     });
 
-    $('btnStop').addEventListener('click', async () => {
+    btnStop.addEventListener('click', async () => {
+      btnStop.disabled = true;
       if (rx) await rx.stop();
       rx = null;
-      setRunning(false);
+      btnStart.disabled = false;
+    });
+
+    btnClear.addEventListener('click', () => {
+      txtOutput.value = '';
     });
   </script>
 </body>
