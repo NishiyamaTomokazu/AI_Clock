@@ -1,8 +1,55 @@
 let appState = 0;
 let isSimulating = false;
 
+// ===== FSK 受信 (マイコンからの「音を検出した」通知) =====
 let fskRx = null;
 let fskBuffer = [];
+
+// FSK受信を開始する。ユーザー操作(クリック)の中で、最初の await より前に呼ぶこと (iOS Safari の制約)
+async function startFsk() {
+    if (!window.FskReceiver) throw new Error('FskReceiver が読み込まれていません');
+    fskBuffer = [];
+    const rx = new window.FskReceiver({
+        baud: 200,        // 200 bps
+        freq0: 1200,      // "0" = 1200 Hz
+        freq1: 2200,      // "1" = 2200 Hz
+        threshold: 0.01,
+        workletUrl: './js/fsk-processor_2.js',
+        onByte: onFskByte
+    });
+    await rx.start();
+    fskRx = rx;           // 開始に成功したときだけ保持する
+}
+
+async function stopFsk() {
+    const rx = fskRx;
+    fskRx = null;
+    fskBuffer = [];
+    if (rx) {
+        try { await rx.stop(); } catch (e) { console.error('FSK停止エラー:', e); }
+    }
+}
+
+// 1バイト受信ごとに呼ばれる。直近2バイトが 170 → 1 なら、音センサ検出として通知する
+function onFskByte(value) {
+    fskBuffer.push(value);
+    if (fskBuffer.length > 2) fskBuffer.shift();
+    if (fskBuffer.length === 2 && fskBuffer[0] === 170 && fskBuffer[1] === 1) {
+        fskBuffer = [];
+        // waitForSensor が待っている 'hid-input' イベントを発火させる
+        window.dispatchEvent(new CustomEvent('hid-input', { detail: { data: [170, 1] } }));
+    }
+}
+
+// スタート以降のブロックの並びに、指定タイプのブロックがあるか
+function chainHasType(startBlock, type) {
+    let b = startBlock.getNextBlock();
+    while (b) {
+        if (b.type === type) return true;
+        b = b.getNextBlock();
+    }
+    return false;
+}
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -169,69 +216,54 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     if (isSimulating || !window.workspace) return;
     const startBlock = window.workspace.getBlocksByType('cmd_start')[0];
     if (!startBlock) return;
-    // ========== ここから追加: FSKレシーバーの開始処理 ==========
-    if (!fskRx && window.FskReceiver) {
-        fskRx = new window.FskReceiver({
-            baud: 200,        // 200 bps
-            freq0: 1200,      // "0" = 1200 Hz
-            freq1: 2200,      // "1" = 2200 Hz
-            threshold: 0.01,
-            // fsk-processor_2.js のファイルパスを指定
-            workletUrl: './js/fsk-processor_2.js', 
-            onByte: (value) => {
-                fskBuffer.push(value);
-                // 直近に受信した2バイトを確認する
-                if (fskBuffer.length >= 2) {
-                    const last1 = fskBuffer[fskBuffer.length - 1]; // 最新のバイト
-                    const last2 = fskBuffer[fskBuffer.length - 2]; // 1つ前のバイト
-                    
-                    // 170 → 1 の順番で受信した場合
-                    if (last2 === 170 && last1 === 1) {
-                        // hid-inputイベントを擬似的に発火させ、waitForSensor を通過させる
-                        window.dispatchEvent(new CustomEvent('hid-input', {
-                            detail: { data: [170, 1] }
-                        }));
-                        fskBuffer = []; // バッファをリセット
-                    }
-                }
-            }
-        });
-        try {
-            await fskRx.start();
-        } catch (err) {
-            console.error('マイクの開始に失敗しました: ', err);
-        }
-    }
-    // ========== ここまで追加 ==========
-    
-    if (window.parent && window.parent.transferSharedHID) {
-        let runCommand = isIOS ? [253, 2] : [241]; 
-        window.parent.transferSharedHID(runCommand); 
-    }
-    isSimulating = true;
-    window.workspace.highlightBlock(startBlock.id);
 
-    let currentBlock = startBlock.getNextBlock();
-    while (currentBlock) {
-        window.workspace.highlightBlock(currentBlock.id);
-        if (currentBlock.type === 'cmd_led') {
-            const colorName = currentBlock.getFieldValue('COLOR');
-            const timeSec = Number(currentBlock.getFieldValue('TIME'));
-            appState = 0;
-            switch (colorName) {
-                case "red": appState = 1; break; case "green": appState = 2; break; case "blue": appState = 4; break;
-                case "yellow": appState = 3; break; case "purple": appState = 5; break; case "cyan": appState = 6; break; case "white": appState = 7; break;
+    isSimulating = true; // マイクの許可待ちの間も二重実行を防ぐ
+
+    try {
+        // 「音が鳴るまで待つ」があるときだけ FSK 受信(マイク)を開始する
+        if (chainHasType(startBlock, 'cmd_wait_sound')) {
+            try {
+                await startFsk();
+            } catch (err) {
+                console.error('マイクの開始に失敗しました: ', err);
+                alert('マイクを使えませんでした。マイクの使用を許可してから、もう一度実行してください。');
+                return;
             }
-            render(); 
-            await wait(timeSec * 1000); 
-            appState = 0;
-            render();
-        } 
-        else if (currentBlock.type === 'cmd_wait_sound') {
-            await waitForSensor(170, 1);
         }
-        currentBlock = currentBlock.getNextBlock();
+
+        // マイクの準備ができてから、マイコンへ実行コマンドを送る
+        if (window.parent && window.parent.transferSharedHID) {
+            const runCommand = isIOS ? [253, 2] : [241];
+            window.parent.transferSharedHID(runCommand);
+        }
+
+        window.workspace.highlightBlock(startBlock.id);
+
+        let currentBlock = startBlock.getNextBlock();
+        while (currentBlock) {
+            window.workspace.highlightBlock(currentBlock.id);
+            if (currentBlock.type === 'cmd_led') {
+                const colorName = currentBlock.getFieldValue('COLOR');
+                const timeSec = Number(currentBlock.getFieldValue('TIME'));
+                appState = 0;
+                switch (colorName) {
+                    case "red": appState = 1; break; case "green": appState = 2; break; case "blue": appState = 4; break;
+                    case "yellow": appState = 3; break; case "purple": appState = 5; break; case "cyan": appState = 6; break; case "white": appState = 7; break;
+                }
+                render();
+                await wait(timeSec * 1000);
+                appState = 0;
+                render();
+            }
+            else if (currentBlock.type === 'cmd_wait_sound') {
+                // マイコンから FSK で 170, 1 が届くまでここで待つ
+                await waitForSensor(170, 1);
+            }
+            currentBlock = currentBlock.getNextBlock();
+        }
+    } finally {
+        await stopFsk();   // マイクを止める
+        isSimulating = false;
+        resetSimulator();
     }
-    isSimulating = false;
-    resetSimulator(); 
 });
