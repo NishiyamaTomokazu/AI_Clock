@@ -14,7 +14,7 @@ async function startFsk() {
         freq0: 1200,      // "0" = 1200 Hz
         freq1: 2200,      // "1" = 2200 Hz
         threshold: 0.01,
-        workletUrl: './js/fsk-processor_2.js',
+        workletUrl: './js/fsk-processor.js',
         onByte: onFskByte
     });
     await rx.start();
