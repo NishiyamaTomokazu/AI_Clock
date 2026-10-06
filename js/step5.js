@@ -1,5 +1,9 @@
 let appState = 0;
-let isSimulating = false; 
+let isSimulating = false;
+
+let fskRx = null;
+let fskBuffer = [];
+
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function waitForSensor(targetCode, targetValue) {
@@ -165,6 +169,41 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     if (isSimulating || !window.workspace) return;
     const startBlock = window.workspace.getBlocksByType('cmd_start')[0];
     if (!startBlock) return;
+    // ========== ここから追加: FSKレシーバーの開始処理 ==========
+    if (!fskRx && window.FskReceiver) {
+        fskRx = new window.FskReceiver({
+            baud: 200,        // 200 bps
+            freq0: 1200,      // "0" = 1200 Hz
+            freq1: 2200,      // "1" = 2200 Hz
+            threshold: 0.01,
+            // fsk-processor_2.js のファイルパスを指定
+            workletUrl: './js/fsk-processor_2.js', 
+            onByte: (value) => {
+                fskBuffer.push(value);
+                // 直近に受信した2バイトを確認する
+                if (fskBuffer.length >= 2) {
+                    const last1 = fskBuffer[fskBuffer.length - 1]; // 最新のバイト
+                    const last2 = fskBuffer[fskBuffer.length - 2]; // 1つ前のバイト
+                    
+                    // 170 → 1 の順番で受信した場合
+                    if (last2 === 170 && last1 === 1) {
+                        // hid-inputイベントを擬似的に発火させ、waitForSensor を通過させる
+                        window.dispatchEvent(new CustomEvent('hid-input', {
+                            detail: { data: [170, 1] }
+                        }));
+                        fskBuffer = []; // バッファをリセット
+                    }
+                }
+            }
+        });
+        try {
+            await fskRx.start();
+        } catch (err) {
+            console.error('マイクの開始に失敗しました: ', err);
+        }
+    }
+    // ========== ここまで追加 ==========
+    
     if (window.parent && window.parent.transferSharedHID) {
         let runCommand = isIOS ? [253, 2] : [241]; 
         window.parent.transferSharedHID(runCommand); 
