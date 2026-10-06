@@ -37,13 +37,23 @@
 
     btnStart.addEventListener('click', async () => {
       btnStart.disabled = true;
+      // rx = new FskReceiver({
+      //   baud: 200,        // 200 bps
+      //   freq0: 1200,      // "0" = 1200 Hz
+      //   freq1: 2200,      // "1" = 2200 Hz
+      //   threshold: 0.01,  // 信号とみなす最小振幅 (反応しないときは小さく、ノイズを拾うときは大きく)
+      //   onText: (s) => {
+      //     txtOutput.value += s;
+      //     txtOutput.scrollTop = txtOutput.scrollHeight;
+      //   }
+      // });
       rx = new FskReceiver({
         baud: 200,        // 200 bps
         freq0: 1200,      // "0" = 1200 Hz
         freq1: 2200,      // "1" = 2200 Hz
         threshold: 0.01,  // 信号とみなす最小振幅 (反応しないときは小さく、ノイズを拾うときは大きく)
-        onText: (s) => {
-          txtOutput.value += s;
+        onByte: (value) => {
+          txtOutput.value += value + '\n';
           txtOutput.scrollTop = txtOutput.scrollHeight;
         }
       });
