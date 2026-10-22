@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FSK送信テスト</title>
+<style>
+  body { font-family: sans-serif; margin: 16px; max-width: 480px; }
+  label { display: block; margin-top: 12px; }
+  input, button { font-size: 18px; padding: 8px; }
+  button { margin-top: 8px; }
+  #log { margin-top: 12px; color: #555; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h3>FSK送信テスト (500bps / 0=1200Hz / 1=2200Hz)</h3>
+
+<label>数値(0〜255)
+  <input id="num" type="number" min="0" max="255" value="170">
+</label>
+<button id="sendNum">数値を送信</button>
+
+<label>文字列(ASCII)
+  <input id="txt" type="text" value="HELLO">
+</label>
+<button id="sendTxt">文字列を送信</button>
+
+<label>バイト間の間隔(ms)
+  <input id="gap" type="number" min="0" max="200" value="10">
+</label>
+
+<div id="log"></div>
+
+<script src="fsk_tx.js"></script>
+<script>
+  const tx = new FskTx();
+  const log = m => document.getElementById('log').textContent = m;
+
+  async function go(bytes) {
+    tx.options.gapMs = Number(document.getElementById('gap').value);
+    log('送信中: ' + Array.from(bytes).join(', '));
+    await tx.send(bytes);
+    log('送信完了: ' + Array.from(bytes).join(', '));
+  }
+  document.getElementById('sendNum').onclick = () =>
+    go([Number(document.getElementById('num').value) & 0xFF]);
+  document.getElementById('sendTxt').onclick = () =>
+    go(Array.from(document.getElementById('txt').value, c => c.charCodeAt(0) & 0xFF));
+</script>
+</body>
+</html>
